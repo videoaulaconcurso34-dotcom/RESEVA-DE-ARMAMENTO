@@ -1,0 +1,6 @@
+{
+  "name": "SISRESERVA - SISARM-LOG",
+  "description": "Sistema de Gestão Tática e Controle de Armamento da Reserva (Livro de Carga e Descarga Digital).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
