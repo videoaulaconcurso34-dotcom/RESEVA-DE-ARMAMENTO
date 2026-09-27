@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'supabase',
-      label: 'SUPABASE CLOUD',
+      label: 'SUPABASE (POSTGRESQL)',
       badge: 'SQL',
       badgeColor: 'bg-emerald-700 text-white',
       icon: <span className="font-mono mr-1.5 text-xs">⚡</span>,
