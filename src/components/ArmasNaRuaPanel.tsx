@@ -431,6 +431,25 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
             >
               Limpar
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Confirmar retorno de TODOS os materiais empenhados para o armorial? Todas as cautelas serão finalizadas como DEVOLVIDO e o armorial ficará 100% disponível para iniciar o sistema.'
+                  )
+                ) {
+                  db.retornarTodosAoEstoqueEFinalizarDevolucoes('Início operacional do sistema: 100% dos materiais no armorial');
+                  if (onAtualizar) onAtualizar();
+                }
+              }}
+              className="px-2.5 py-1 bg-[#1c2c1a] hover:bg-[#273e25] border border-[#3e683b] text-[#86efac] rounded font-bold uppercase transition-all cursor-pointer flex items-center gap-1 shadow-sm ml-auto"
+              title="Recolhe todas as armas e materiais para o estoque e finaliza as saídas pendentes"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>RETORNAR TUDO AO ESTOQUE (INICIAR SISTEMA)</span>
+            </button>
           </div>
         </div>
 

@@ -16,6 +16,7 @@ import {
   PackageMinus,
   FileText,
   FileCheck,
+  RotateCcw,
 } from 'lucide-react';
 import {
   ItemEstoque,
@@ -451,6 +452,23 @@ export const EstoqueReserva: React.FC<EstoqueReservaProps> = ({
               <span>SETOR AUTORIZADO</span>
             </span>
           )}
+
+          <button
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Confirmar retorno de TODOS os materiais ao armorial com status DISPONÍVEL e encerramento de todas as cautelas? O sistema ficará 100% recolhido e pronto para início imediato.'
+                )
+              ) {
+                db.retornarTodosAoEstoqueEFinalizarDevolucoes('Início operacional do sistema: 100% dos materiais no armorial');
+              }
+            }}
+            className="bg-[#1b2a1a] hover:bg-[#284227] text-[#86efac] border border-[#3e683b] px-3 py-1.5 rounded text-xs font-bold uppercase flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            title="Recolhe todas as armas e materiais para o estoque e finaliza as saídas pendentes"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>RETORNAR TUDO AO ESTOQUE</span>
+          </button>
 
           <button
             onClick={handleAbrirCriar}

@@ -18,6 +18,7 @@ import {
   EyeOff,
   Trash2,
   Lock,
+  RotateCcw,
 } from 'lucide-react';
 import { HeaderBar } from './HeaderBar';
 import {
@@ -139,6 +140,42 @@ export const SupabaseIntegration: React.FC<SupabaseIntegrationProps> = ({
     setStatusMsg({
       tipo: 'aviso',
       texto: 'Credenciais removidas. Cole a URL e a Chave do seu projeto Supabase e clique em SALVAR CREDENCIAIS.',
+    });
+  };
+
+  const handleRetornarTudoAoEstoque = async () => {
+    if (
+      !window.confirm(
+        'Confirmar retorno de TODOS os materiais ao estoque e encerramento de todas as cautelas? O armorial ficará 100% recolhido e disponível para início imediato do sistema.'
+      )
+    ) {
+      return;
+    }
+    db.retornarTodosAoEstoqueEFinalizarDevolucoes('Início operacional do sistema: 100% dos materiais recolhidos ao armorial');
+    setStatusMsg({
+      tipo: 'sucesso',
+      texto: 'Operação concluída com sucesso: Todos os materiais voltaram ao estoque com status DISPONÍVEL e as saídas foram finalizadas como DEVOLVIDO. A sincronização automática em tempo real foi disparada!',
+    });
+    if (onSincronizacaoConcluida) {
+      onSincronizacaoConcluida();
+    }
+  };
+
+  const handleToggleAutoSync = (ativo: boolean) => {
+    salvarConfigSupabase({
+      url: supabaseUrl,
+      anonKey: anonKey,
+      autoSync: ativo,
+    });
+    setConfig(carregarConfigSupabase());
+    if (ativo) {
+      db.agendarAutoSyncRealtime();
+    }
+    setStatusMsg({
+      tipo: 'sucesso',
+      texto: ativo
+        ? 'Sincronização em Tempo Real ATIVADA! Toda movimentação no sistema será gravada automaticamente no Supabase.'
+        : 'Sincronização em Tempo Real pausada.',
     });
   };
 
@@ -417,6 +454,35 @@ export const SupabaseIntegration: React.FC<SupabaseIntegrationProps> = ({
             </div>
           </div>
 
+          {/* Sincronização em Tempo Real (Ativação Automática) */}
+          <div className="p-3 bg-[#111912] border border-[#254224] rounded flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#86efac] animate-pulse flex-shrink-0" />
+              <div>
+                <strong className="text-white block font-bold uppercase tracking-wide">
+                  SINCRONIZAÇÃO AUTOMÁTICA EM TEMPO REAL (POSTGRESQL)
+                </strong>
+                <span className="text-[11px] text-[#8ea48a]">
+                  Toda cautela, devolução, cadastro de militar ou baixa de material é alocada no banco de dados na nuvem automaticamente no mesmo instante.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleToggleAutoSync(config.autoSync === false ? true : false)}
+                className={`px-3 py-1.5 rounded text-[11px] font-bold uppercase border cursor-pointer transition-colors ${
+                  config.autoSync !== false
+                    ? 'bg-[#1e381c] border-[#3f7239] text-[#86efac]'
+                    : 'bg-[#1b1c11] border-amber-800 text-amber-300'
+                }`}
+              >
+                {config.autoSync !== false ? '● ATIVADA (TEMPO REAL)' : '○ PAUSADA'}
+              </button>
+            </div>
+          </div>
+
           {/* Botões de Ação */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#1f281e]">
             <div className="flex flex-wrap items-center gap-2">
@@ -427,6 +493,16 @@ export const SupabaseIntegration: React.FC<SupabaseIntegrationProps> = ({
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>SALVAR CREDENCIAIS E TESTAR</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRetornarTudoAoEstoque}
+                className="bg-[#1b2b1a] hover:bg-[#284227] text-[#86efac] border border-[#3e683b] px-3.5 py-2 rounded text-xs font-bold uppercase flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                title="Retorna todos os materiais para o estoque e finaliza devoluções para iniciar o sistema"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[#86efac]" />
+                <span>RETORNAR TUDO AO ESTOQUE (INICIAR SISTEMA)</span>
               </button>
 
               <button

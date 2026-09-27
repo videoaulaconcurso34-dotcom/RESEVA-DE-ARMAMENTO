@@ -8,7 +8,10 @@ import {
   ItemCarrinhoRetirada,
   EstadoConservacao,
   StatusRetirada,
+  StatusEstoque,
 } from '../types';
+import { pushDadosParaSupabase, hasCustomSupabaseConfig } from './supabase';
+import { sheetsService } from './sheetsService';
 
 const STORAGE_KEYS = {
   ESTOQUE: 'sisreserva_estoque',
@@ -116,11 +119,11 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     modelo: 'Glock 22',
     calibre: '.40 S&W',
     nMaterial: 'BSK901',
-    status: 'INDISPONÍVEL/NA RUA',
+    status: 'DISPONÍVEL',
     estado: 'EXCELENTE',
     localArmazenamento: 'Cofre A / Prateleira 1',
     quantidadeTotal: 1,
-    quantidadeDisponivel: 0,
+    quantidadeDisponivel: 1,
   },
   {
     id: 'est-2',
@@ -142,11 +145,11 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     modelo: 'TS9',
     calibre: '9x19mm Parabellum',
     nMaterial: 'TS9-4081',
-    status: 'INDISPONÍVEL/NA RUA',
+    status: 'DISPONÍVEL',
     estado: 'EXCELENTE',
     localArmazenamento: 'Cofre A / Prateleira 2',
     quantidadeTotal: 1,
-    quantidadeDisponivel: 0,
+    quantidadeDisponivel: 1,
   },
   {
     id: 'est-4',
@@ -155,11 +158,11 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     modelo: 'IA2',
     calibre: '5.56x45mm NATO',
     nMaterial: 'IA2-8819',
-    status: 'INDISPONÍVEL/NA RUA',
+    status: 'DISPONÍVEL',
     estado: 'EXCELENTE',
     localArmazenamento: 'Cofre Fuzis / Rack 01',
     quantidadeTotal: 1,
-    quantidadeDisponivel: 0,
+    quantidadeDisponivel: 1,
   },
   {
     id: 'est-5',
@@ -199,7 +202,7 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     estado: 'EXCELENTE',
     localArmazenamento: 'Paiol / Armário de Munição A',
     quantidadeTotal: 1200,
-    quantidadeDisponivel: 1140,
+    quantidadeDisponivel: 1200,
   },
   {
     id: 'est-8',
@@ -213,7 +216,7 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     estado: 'EXCELENTE',
     localArmazenamento: 'Paiol / Armário de Munição B',
     quantidadeTotal: 900,
-    quantidadeDisponivel: 840,
+    quantidadeDisponivel: 900,
   },
   {
     id: 'est-9',
@@ -222,11 +225,11 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     modelo: 'Kevlar III-A',
     calibre: 'Nível III-A',
     nMaterial: 'COL-9901',
-    status: 'INDISPONÍVEL/NA RUA',
+    status: 'DISPONÍVEL',
     estado: 'EXCELENTE',
     localArmazenamento: 'Cabideiro Balístico / Box 04',
     quantidadeTotal: 1,
-    quantidadeDisponivel: 0,
+    quantidadeDisponivel: 1,
   },
   {
     id: 'est-10',
@@ -248,11 +251,11 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     modelo: 'APX4000',
     calibre: 'P25 Digital',
     nMaterial: 'RAD-7712',
-    status: 'INDISPONÍVEL/NA RUA',
+    status: 'DISPONÍVEL',
     estado: 'EXCELENTE',
     localArmazenamento: 'Bancada de Rádios',
     quantidadeTotal: 1,
-    quantidadeDisponivel: 0,
+    quantidadeDisponivel: 1,
   },
   {
     id: 'est-12',
@@ -264,7 +267,7 @@ const DADOS_INICIAIS_ESTOQUE: ItemEstoque[] = [
     estado: 'EXCELENTE',
     localArmazenamento: 'Gaveteiro Acessórios',
     quantidadeTotal: 10,
-    quantidadeDisponivel: 8,
+    quantidadeDisponivel: 10,
   },
 ];
 
@@ -272,11 +275,12 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
   {
     id: 'ret-101',
     numeroCautela: 'CAUT-2026/0891',
-    dataSaida: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
-    status: 'EM SERVIÇO',
+    dataSaida: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+    status: 'DEVOLVIDO',
     tipoDestino: 'EM SERVIÇO',
     motivoDetalhado: 'Patrulhamento Tático Ordinário - Viatura M-01104',
     prazoPrevistoHoras: 12,
+    dataDevolucao: new Date(Date.now() - 36 * 3600 * 1000).toISOString(),
     militarServicoId: 'mil-1',
     militarServicoNome: 'Sergio Mendes de Albuquerque',
     militarServicoGuerra: 'MENDES',
@@ -287,7 +291,10 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
     militarReservaNome: 'Luciano Ventura dos Santos',
     militarReservaPatente: 'Sd',
     passwordSaidaValidada: true,
+    passwordDevolucaoValidada: true,
     hashAssinaturaSaida: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    hashAssinaturaDevolucao: 'dev-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    observacoesGerais: 'Devolução geral concluída - Armorial 100% recolhido',
     itens: [
       {
         id: 'cart-1',
@@ -297,7 +304,7 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
         nArmamento: 'BSK901',
         calibre: '.40 S&W',
         quantidade: 1,
-        quantidadeDevolvida: 0,
+        quantidadeDevolvida: 1,
       },
       {
         id: 'cart-2',
@@ -307,7 +314,7 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
         nArmamento: 'LOT-40-2026',
         calibre: '.40 S&W',
         quantidade: 30,
-        quantidadeDevolvida: 0,
+        quantidadeDevolvida: 30,
       },
       {
         id: 'cart-3',
@@ -317,18 +324,19 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
         nArmamento: 'COL-9901',
         calibre: 'Nível III-A',
         quantidade: 1,
-        quantidadeDevolvida: 0,
+        quantidadeDevolvida: 1,
       },
     ],
   },
   {
     id: 'ret-102',
     numeroCautela: 'CAUT-2026/0892',
-    dataSaida: new Date(Date.now() - 7 * 3600 * 1000).toISOString(),
-    status: 'MISSÃO',
+    dataSaida: new Date(Date.now() - 30 * 3600 * 1000).toISOString(),
+    status: 'DEVOLVIDO',
     tipoDestino: 'MISSÃO',
     motivoDetalhado: 'Operação Especial Integrada de Repressão',
     prazoPrevistoHoras: 24,
+    dataDevolucao: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
     militarServicoId: 'mil-3',
     militarServicoNome: 'Felipe Alcantara Barreto',
     militarServicoGuerra: 'BARRETO',
@@ -339,7 +347,10 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
     militarReservaNome: 'Luciano Ventura dos Santos',
     militarReservaPatente: 'Sd',
     passwordSaidaValidada: true,
+    passwordDevolucaoValidada: true,
     hashAssinaturaSaida: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+    hashAssinaturaDevolucao: 'dev-a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+    observacoesGerais: 'Devolução geral concluída - Armorial 100% recolhido',
     itens: [
       {
         id: 'cart-4',
@@ -349,7 +360,7 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
         nArmamento: 'IA2-8819',
         calibre: '5.56x45mm NATO',
         quantidade: 1,
-        quantidadeDevolvida: 0,
+        quantidadeDevolvida: 1,
       },
       {
         id: 'cart-5',
@@ -359,7 +370,7 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
         nArmamento: 'LOT-556-2026',
         calibre: '5.56x45mm NATO',
         quantidade: 60,
-        quantidadeDevolvida: 0,
+        quantidadeDevolvida: 60,
       },
       {
         id: 'cart-6',
@@ -368,7 +379,7 @@ const DADOS_INICIAIS_RETIRADAS: Retirada[] = [
         materialNome: 'Rádio Motorola APX4000 Criptografado',
         nArmamento: 'RAD-7712',
         quantidade: 1,
-        quantidadeDevolvida: 0,
+        quantidadeDevolvida: 1,
       },
     ],
   },
@@ -399,6 +410,8 @@ const DADOS_INICIAIS_AUDITORIA: RegistroAuditoria[] = [
 
 class DatabaseService {
   private listeners: Array<() => void> = [];
+  private autoSyncTimer: any = null;
+  private isSyncingRealtime: boolean = false;
 
   constructor() {
     this.initIfEmpty();
@@ -444,6 +457,13 @@ class DatabaseService {
     if (!localStorage.getItem(STORAGE_KEYS.BAIXAS)) {
       localStorage.setItem(STORAGE_KEYS.BAIXAS, JSON.stringify([]));
     }
+
+    // Executa a devolução geral e retorno total ao estoque para iniciar o sistema zerado
+    const reinicioExecutado = localStorage.getItem('sisreserva_reinicio_zerado_v2');
+    if (!reinicioExecutado) {
+      this.retornarTodosAoEstoqueEFinalizarDevolucoes('Início operacional do sistema: 100% dos materiais recolhidos ao armorial');
+      localStorage.setItem('sisreserva_reinicio_zerado_v2', 'true');
+    }
   }
 
   public subscribe(listener: () => void): () => void {
@@ -475,6 +495,147 @@ class DatabaseService {
   private save<T>(key: string, data: T[]) {
     localStorage.setItem(key, JSON.stringify(data));
     this.notify();
+    this.agendarAutoSyncRealtime();
+  }
+
+  // --- Sincronização em Tempo Real (Supabase PostgreSQL & Sheets) ---
+  public agendarAutoSyncRealtime(): void {
+    if (this.autoSyncTimer) {
+      clearTimeout(this.autoSyncTimer);
+    }
+    this.autoSyncTimer = setTimeout(() => {
+      this.sincronizarRealtimeAgora();
+    }, 400);
+  }
+
+  public async sincronizarRealtimeAgora(): Promise<{ supabaseOk: boolean; sheetsOk: boolean }> {
+    if (this.isSyncingRealtime) return { supabaseOk: false, sheetsOk: false };
+    this.isSyncingRealtime = true;
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('sisreserva_sync_realtime_status', {
+          detail: { status: 'syncing', timestamp: new Date().toLocaleTimeString('pt-BR') },
+        })
+      );
+    } catch {}
+
+    let supabaseOk = false;
+    let sheetsOk = false;
+
+    try {
+      const dados = {
+        estoque: this.getEstoque(),
+        militares: this.getMilitares(),
+        armeiros: this.getArmeiros(),
+        retiradas: this.getRetiradas(),
+        auditoria: this.getAuditoria(),
+      };
+
+      // 1. Supabase (PostgreSQL)
+      if (hasCustomSupabaseConfig() && localStorage.getItem('supabase_autosync') !== 'false') {
+        try {
+          const res = await pushDadosParaSupabase(dados);
+          supabaseOk = res.sucesso;
+        } catch (err) {
+          console.warn('Auto-sync Supabase em tempo real:', err);
+        }
+      }
+
+      // 2. Google Sheets Webhook
+      const sheetsCfg = sheetsService.getConfig();
+      if (sheetsCfg.webhookUrl) {
+        try {
+          const resSheets = await sheetsService.exportarDadosParaSheets(
+            dados.retiradas,
+            dados.estoque,
+            dados.militares,
+            dados.armeiros
+          );
+          sheetsOk = resSheets.sucesso;
+        } catch (err) {
+          console.warn('Auto-sync Sheets em tempo real:', err);
+        }
+      }
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('sisreserva_sync_realtime_status', {
+            detail: {
+              status: 'synced',
+              timestamp: new Date().toLocaleTimeString('pt-BR'),
+              supabaseOk,
+              sheetsOk,
+            },
+          })
+        );
+      } catch {}
+
+      return { supabaseOk, sheetsOk };
+    } finally {
+      this.isSyncingRealtime = false;
+    }
+  }
+
+  // --- Retornar Todos os Materiais ao Estoque & Finalizar Devoluções ---
+  public retornarTodosAoEstoqueEFinalizarDevolucoes(motivo?: string): void {
+    // 1. Estoque: todos DISPONÍVEL com quantidade integral
+    const estoqueAtual = this.getEstoque();
+    const estoqueAtualizado: ItemEstoque[] = estoqueAtual.map((item) => ({
+      ...item,
+      status: (item.status === 'BAIXADO' ? 'BAIXADO' : 'DISPONÍVEL') as StatusEstoque,
+      quantidadeDisponivel: item.quantidadeTotal != null ? item.quantidadeTotal : 1,
+      militarAtualId: undefined,
+      retiradaAtualId: undefined,
+    }));
+    localStorage.setItem(STORAGE_KEYS.ESTOQUE, JSON.stringify(estoqueAtualizado));
+
+    // 2. Retiradas: finalizar todas as ativas como DEVOLVIDO
+    const dataDev = new Date().toISOString();
+    const hash = `reinicio-sistema-${Date.now()}`;
+    const retiradasAtuais = this.getRetiradas();
+    const retiradasAtualizadas: Retirada[] = retiradasAtuais.map((ret) => {
+      if (ret.status !== 'DEVOLVIDO') {
+        return {
+          ...ret,
+          status: 'DEVOLVIDO' as StatusRetirada,
+          dataDevolucao: dataDev,
+          passwordDevolucaoValidada: true,
+          hashAssinaturaDevolucao: hash,
+          observacoesGerais:
+            (ret.observacoesGerais ? ret.observacoesGerais + ' | ' : '') +
+            (motivo || 'Material recolhido para reinício operacional do armorial'),
+          itens: (ret.itens || []).map((it) => ({
+            ...it,
+            quantidadeDevolvida: it.quantidade,
+            quantidadeConsumida: 0,
+            estadoDevolucao: 'EXCELENTE' as EstadoConservacao,
+          })),
+        };
+      }
+      return ret;
+    });
+    localStorage.setItem(STORAGE_KEYS.RETIRADAS, JSON.stringify(retiradasAtualizadas));
+
+    // 3. Auditoria
+    const auditoria = this.getAuditoria();
+    auditoria.unshift({
+      id: `aud-reinicio-${Date.now()}`,
+      dataHora: dataDev,
+      tipoEvento: 'REINICIO_SISTEMA_RECOLHIMENTO_TOTAL',
+      descricao:
+        motivo ||
+        'Todos os materiais e armamentos foram recolhidos ao armorial (100% disponíveis) para início das operações do sistema.',
+      retiradaId: 'GERAL',
+      militarEnvolvido: 'Efetivo Geral',
+      armeiroResponsavel: 'Responsável pelo Setor (VENTURA)',
+      hashValidacao: hash,
+    });
+    localStorage.setItem(STORAGE_KEYS.AUDITORIA, JSON.stringify(auditoria));
+
+    // Notifica listeners e sincroniza automaticamente em tempo real
+    this.notify();
+    this.agendarAutoSyncRealtime();
   }
 
   // --- Armeiros ---
