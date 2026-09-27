@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ))
   );
 
-  const isMilitar = sessaoUsuario?.tipo === 'MILITAR' && !isResponsavel;
+  const isMilitar = sessaoUsuario?.tipo === 'MILITAR';
 
   const todosNavItems = [
     {
@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'nova-retirada',
-      label: isMilitar ? 'SOLICITAR CAUTELA' : 'NOVA RETIRADA',
+      label: 'NOVA RETIRADA',
       icon: <span className="font-mono font-bold mr-1.5 text-xs">+</span>,
       apenasArmeiro: false,
     },
@@ -102,11 +102,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const navItems = isMilitar
-    ? todosNavItems.filter((item) => !item.apenasArmeiro)
+    ? [
+        {
+          id: 'nova-retirada',
+          label: 'NOVA RETIRADA',
+          icon: <span className="font-mono font-bold mr-1.5 text-xs">+</span>,
+          apenasArmeiro: false,
+        },
+      ]
     : todosNavItems;
 
   return (
-    <aside className="w-56 sm:w-60 bg-[#0d120e] border-r border-[#1f281e] flex flex-col justify-between h-screen sticky top-0 font-mono select-none flex-shrink-0 z-30">
+    <aside className="w-60 sm:w-64 bg-[#0d120e] border-r border-[#1f281e] flex flex-col justify-between h-screen sticky top-0 font-mono select-none flex-shrink-0 z-30">
       {/* Top Header */}
       <div>
         <div className="p-4 border-b border-[#1f281e]">
@@ -116,17 +123,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }}
             className={isMilitar ? '' : 'cursor-pointer'}
           >
-            <h1 className="font-bold text-sm tracking-wider text-[#e2e8e2] uppercase flex items-center gap-1.5">
-              <Shield className="w-4 h-4 text-[#7eb864]" />
-              <span>SISRESERVA</span>
-            </h1>
-            <p className="text-[9px] text-[#7a8c7b] tracking-widest uppercase mt-0.5">
-              {isResponsavel
-                ? 'RESPONSÁVEL DO SETOR • TOTAL ACESSO'
-                : isMilitar
-                ? 'PORTAL DO POLICIAL (RESTRITO)'
-                : 'RESERVA DE ARMAMENTO'}
-            </p>
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="font-bold text-sm tracking-wider text-[#e2e8e2] uppercase flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-[#7eb864] flex-shrink-0" />
+                  <span>SISRESERVA</span>
+                </h1>
+                <span className="text-[9px] text-[#7a8c7b] tracking-widest uppercase">
+                  - IDEALIZADOR Militar VENTURA
+                </span>
+              </div>
+              <p className="text-[9px] text-[#7a8c7b] tracking-widest uppercase mt-1">
+                {isResponsavel
+                  ? 'RESPONSÁVEL DO SETOR • TOTAL ACESSO'
+                  : isMilitar
+                  ? 'PORTAL DO POLICIAL (RESTRITO)'
+                  : 'RESERVA DE ARMAMENTO'}
+              </p>
+            </div>
           </div>
         </div>
 

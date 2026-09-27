@@ -244,13 +244,7 @@ export const NovaRetiradaWizard: React.FC<NovaRetiradaWizardProps> = ({
 
   return (
     <div className="space-y-6 font-mono max-w-5xl">
-      <HeaderBar
-        title={
-          sessaoUsuario?.tipo === 'MILITAR'
-            ? 'SOLICITAÇÃO DE CAUTELA — POLICIAL DE SERVIÇO'
-            : 'NOVA RETIRADA'
-        }
-      />
+      <HeaderBar title="NOVA RETIRADA" />
 
       {/* Stepper Superior */}
       <div className="flex items-center justify-between text-xs font-bold text-[#7a8c7b] border-b border-[#1f281e] pb-4 select-none">

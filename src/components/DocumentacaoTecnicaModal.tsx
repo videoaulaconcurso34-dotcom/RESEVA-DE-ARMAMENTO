@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { db } from '../services/db';
+import { SCRIPT_SQL_SUPABASE } from '../services/supabase';
 
 interface DocumentacaoTecnicaModalProps {
   isOpen: boolean;
@@ -31,84 +32,7 @@ export const DocumentacaoTecnicaModal: React.FC<DocumentacaoTecnicaModalProps> =
     setTimeout(() => setCopiedSection(null), 2000);
   };
 
-  const schemaSQL = `-- ============================================================================
--- SISRESERVA / SISARM-LOG - ESTRUTURA COMPLETA SUPABASE / POSTGRESQL (DDL)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS militares_servico (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome TEXT NOT NULL,
-  nome_guerra TEXT NOT NULL,
-  patente TEXT NOT NULL,
-  matricula TEXT NOT NULL UNIQUE,
-  batalhao TEXT NOT NULL,
-  companhia TEXT,
-  pelotao TEXT,
-  status TEXT NOT NULL DEFAULT 'ATIVO',
-  senha_hash TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS armeiros (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome TEXT NOT NULL,
-  nome_guerra TEXT NOT NULL,
-  patente TEXT NOT NULL,
-  matricula TEXT NOT NULL UNIQUE,
-  funcao TEXT NOT NULL,
-  ativo BOOLEAN DEFAULT true,
-  senha_hash TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS estoque (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome TEXT NOT NULL,
-  modelo TEXT,
-  categoria TEXT NOT NULL,
-  calibre TEXT,
-  n_material TEXT NOT NULL UNIQUE,
-  lote TEXT,
-  status TEXT NOT NULL DEFAULT 'DISPONÍVEL',
-  estado TEXT NOT NULL DEFAULT 'EXCELENTE',
-  local_armazenamento TEXT NOT NULL,
-  quantidade_total INTEGER DEFAULT 1,
-  quantidade_disponivel INTEGER DEFAULT 1,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS retiradas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  numero_cautela TEXT NOT NULL UNIQUE,
-  data_saida TIMESTAMPTZ NOT NULL,
-  data_devolucao_prevista TIMESTAMPTZ,
-  data_devolucao_real TIMESTAMPTZ,
-  militar_servico_id UUID REFERENCES militares_servico(id),
-  militar_servico_nome TEXT NOT NULL,
-  militar_servico_guerra TEXT NOT NULL,
-  militar_servico_patente TEXT NOT NULL,
-  militar_servico_matricula TEXT NOT NULL,
-  militar_reserva_id UUID REFERENCES armeiros(id),
-  militar_reserva_nome TEXT NOT NULL,
-  tipo_destino TEXT NOT NULL,
-  motivo_detalhado TEXT,
-  status TEXT NOT NULL DEFAULT 'EM SERVIÇO',
-  hash_autenticacao TEXT NOT NULL,
-  itens JSONB NOT NULL DEFAULT '[]'::jsonb,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS auditoria_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  data_hora TIMESTAMPTZ DEFAULT now(),
-  acao TEXT NOT NULL,
-  usuario_id UUID,
-  usuario_nome TEXT NOT NULL,
-  usuario_tipo TEXT NOT NULL,
-  detalhes TEXT NOT NULL,
-  hash TEXT NOT NULL,
-  numero_cautela TEXT
-);`;
+  const schemaSQL = SCRIPT_SQL_SUPABASE;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-mono">

@@ -7,7 +7,6 @@ import {
   KeyRound,
   AlertCircle,
   CheckCircle2,
-  HelpCircle,
 } from 'lucide-react';
 import { MilitarServico, MilitarReserva, SessaoUsuario } from '../types';
 import { db } from '../services/db';
@@ -27,7 +26,6 @@ export const TelaLogin: React.FC<TelaLoginProps> = ({
   const [usuarioSelecionadoId, setUsuarioSelecionadoId] = useState<string>('');
   const [senhaInput, setSenhaInput] = useState<string>('');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
-  const [mostrarDica, setMostrarDica] = useState(false);
 
   React.useEffect(() => {
     if (tipoLogin === 'ARMEIRO') {
@@ -193,19 +191,9 @@ export const TelaLogin: React.FC<TelaLoginProps> = ({
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-[#7a8c7b] uppercase font-bold">
-                Senha / PIN Individual *
-              </label>
-              <button
-                type="button"
-                onClick={() => setMostrarDica(!mostrarDica)}
-                className="text-[10px] text-[#7eb864] hover:underline flex items-center gap-0.5 cursor-pointer"
-              >
-                <HelpCircle className="w-3 h-3" />
-                <span>Ver senhas padrão</span>
-              </button>
-            </div>
+            <label className="text-[10px] text-[#7a8c7b] uppercase font-bold block mb-1">
+              Senha / PIN Individual *
+            </label>
 
             <div className="relative">
               <KeyRound className="w-4 h-4 text-[#7a8c7b] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -213,20 +201,12 @@ export const TelaLogin: React.FC<TelaLoginProps> = ({
                 type="password"
                 required
                 autoFocus
-                placeholder={tipoLogin === 'ARMEIRO' ? 'Senha do Armeiro (ex: admin ou 4669)' : 'PIN 4 dígitos (ex: 1234 ou 4669)'}
+                placeholder={tipoLogin === 'ARMEIRO' ? 'Senha do Armeiro' : 'PIN 4 dígitos'}
                 value={senhaInput}
                 onChange={(e) => setSenhaInput(e.target.value)}
                 className="w-full bg-[#090d09] border border-[#232f22] rounded pl-9 pr-3 py-2.5 text-white font-mono focus:outline-none focus:border-[#425439]"
               />
             </div>
-
-            {mostrarDica && (
-              <div className="mt-2 p-2.5 bg-[#121a13] border border-[#232f22] rounded text-[11px] text-[#a5bca3] space-y-1">
-                <div>• Responsável pelo Setor / Admin (<strong>VENTURA</strong>): PIN/Senha <strong>4669</strong> (Acesso Total & Visão de Senhas)</div>
-                <div>• Armeiros de Plantão: senha padrão <strong>admin</strong></div>
-                <div>• Militares de Serviço: PIN pessoal padrão <strong>1234</strong></div>
-              </div>
-            )}
           </div>
 
           <button

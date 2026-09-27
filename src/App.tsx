@@ -29,7 +29,6 @@ import { AuditoriaLogs } from './components/AuditoriaLogs';
 import { GoogleSheetsIntegration } from './components/GoogleSheetsIntegration';
 import { SupabaseIntegration } from './components/SupabaseIntegration';
 import { DocumentacaoTecnicaModal } from './components/DocumentacaoTecnicaModal';
-import { TermoCautelaModal } from './components/TermoCautelaModal';
 
 export default function App() {
   // Estado local sincronizado com DatabaseService
@@ -82,8 +81,6 @@ export default function App() {
 
   // Modais globais
   const [docTecnicaOpen, setDocTecnicaOpen] = useState(false);
-  const [termoModalOpen, setTermoModalOpen] = useState(false);
-  const [retiradaTermoSelecionada, setRetiradaTermoSelecionada] = useState<Retirada | null>(null);
   const [devolucaoPreSelecionadaId, setDevolucaoPreSelecionadaId] = useState<string | null>(null);
 
   // Salva sessão no localStorage
@@ -140,11 +137,6 @@ export default function App() {
     setActiveTab('devolucao');
   };
 
-  const handleVisualizarTermo = (ret: Retirada) => {
-    setRetiradaTermoSelecionada(ret);
-    setTermoModalOpen(true);
-  };
-
   // Se não estiver logado, exibe tela de autenticação
   if (!sessaoUsuario) {
     return (
@@ -156,6 +148,9 @@ export default function App() {
     );
   }
 
+  // Se for Militar de Serviço, a aba ativa é estritamente 'nova-retirada'
+  const tabEfetiva = sessaoUsuario.tipo === 'MILITAR' ? 'nova-retirada' : activeTab;
+
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e2e8e2] font-mono flex flex-col md:flex-row antialiased select-text">
       {/* Barra Superior Mobile */}
@@ -163,9 +158,14 @@ export default function App() {
         <div className="flex items-center gap-2">
           <Shield className="w-5 h-5 text-[#7eb864]" />
           <div>
-            <span className="font-bold text-xs uppercase text-white tracking-wider block">
-              SISRESERVA
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-xs uppercase text-white tracking-wider">
+                SISRESERVA
+              </span>
+              <span className="text-[9px] text-[#7a8c7b] tracking-widest uppercase">
+                - IDEALIZADOR Militar VENTURA
+              </span>
+            </div>
             <span className="text-[9px] text-[#7a8c7b] block uppercase">
               {sessaoUsuario.tipo === 'MILITAR' ? 'POLICIAL' : 'ARMORIAL'} • {sessaoUsuario.nomeGuerra}
             </span>
@@ -195,7 +195,7 @@ export default function App() {
               </button>
             </div>
             <Sidebar
-              activeTab={activeTab}
+              activeTab={tabEfetiva}
               setActiveTab={(t) => {
                 setActiveTab(t);
                 setMobileMenuOpen(false);
@@ -220,7 +220,7 @@ export default function App() {
       {/* Sidebar Desktop */}
       <div className="hidden md:block">
         <Sidebar
-          activeTab={activeTab}
+          activeTab={tabEfetiva}
           setActiveTab={setActiveTab}
           itensNaRuaCount={retiradasNaRua.length}
           atrasosCount={atrasosCount}
@@ -236,7 +236,7 @@ export default function App() {
       {/* Conteúdo Principal */}
       <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
         {/* Notificação de Pedidos em Espera para o Armeiro */}
-        {sessaoUsuario.tipo === 'ARMEIRO' && pedidosEmEsperaCount > 0 && activeTab !== 'armas-na-rua' && (
+        {sessaoUsuario.tipo === 'ARMEIRO' && pedidosEmEsperaCount > 0 && tabEfetiva !== 'armas-na-rua' && (
           <div
             onClick={() => setActiveTab('armas-na-rua')}
             className="mb-4 p-3 bg-[#1e2a18] border border-[#3e6632] rounded text-xs text-[#9bd48e] flex items-center justify-between cursor-pointer hover:bg-[#253620] transition-colors shadow-sm"
@@ -254,7 +254,7 @@ export default function App() {
         )}
 
         {/* Renderização das Telas */}
-        {activeTab === 'armas-na-rua' && (
+        {tabEfetiva === 'armas-na-rua' && (
           <ArmasNaRuaPanel
             retiradasNaRua={retiradasNaRua}
             todasRetiradas={retiradas}
@@ -262,32 +262,33 @@ export default function App() {
             armeiroAtivo={armeiroAtivo}
             onAtualizar={() => db.recarregar()}
             onOpenDevolucao={handleOpenDevolucao}
-            onVisualizarTermo={handleVisualizarTermo}
             onOpenNovaCautela={() => setActiveTab('nova-retirada')}
           />
         )}
 
-        {activeTab === 'nova-retirada' && (
+        {tabEfetiva === 'nova-retirada' && (
           <NovaRetiradaWizard
             militares={militares}
             armeiros={armeiros}
             estoque={estoque}
             armeiroPadrao={armeiroAtivo}
             sessaoUsuario={sessaoUsuario}
-            onSucesso={(ret) => {
+            onSucesso={() => {
               if (sessaoUsuario.tipo === 'MILITAR') {
-                // Notificação exibida no próprio wizard
+                setActiveTab('nova-retirada');
               } else {
-                handleVisualizarTermo(ret);
                 setActiveTab('armas-na-rua');
               }
             }}
-            onVisualizarTermo={handleVisualizarTermo}
-            onCancelar={() => setActiveTab('armas-na-rua')}
+            onCancelar={() => {
+              if (sessaoUsuario.tipo !== 'MILITAR') {
+                setActiveTab('armas-na-rua');
+              }
+            }}
           />
         )}
 
-        {activeTab === 'devolucao' && (
+        {tabEfetiva === 'devolucao' && (
           <DevolucaoModal
             retiradasNaRua={retiradasNaRua}
             armeiros={armeiros}
@@ -301,7 +302,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'estoque' && (
+        {tabEfetiva === 'estoque' && (
           <EstoqueReserva
             estoque={estoque}
             retiradas={retiradas}
@@ -312,7 +313,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'militares' && (
+        {tabEfetiva === 'militares' && (
           <MilitaresGerenciamento
             militares={militares}
             armeiros={armeiros}
@@ -322,15 +323,15 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'historico' && (
+        {tabEfetiva === 'historico' && (
           <AuditoriaLogs logs={auditoria} />
         )}
 
-        {activeTab === 'sheets' && (
+        {tabEfetiva === 'sheets' && (
           <GoogleSheetsIntegration />
         )}
 
-        {activeTab === 'supabase' && (
+        {tabEfetiva === 'supabase' && (
           <SupabaseIntegration
             onSincronizacaoConcluida={() => db.recarregar()}
             onAbrirDocumentacao={() => setDocTecnicaOpen(true)}
@@ -342,15 +343,6 @@ export default function App() {
       <DocumentacaoTecnicaModal
         isOpen={docTecnicaOpen}
         onClose={() => setDocTecnicaOpen(false)}
-      />
-
-      <TermoCautelaModal
-        retirada={retiradaTermoSelecionada}
-        isOpen={termoModalOpen}
-        onClose={() => {
-          setTermoModalOpen(false);
-          setRetiradaTermoSelecionada(null);
-        }}
       />
     </div>
   );
