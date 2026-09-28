@@ -324,6 +324,30 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                   </div>
                 </div>
 
+                {/* Histórico de Entregas Parciais Anteriores */}
+                {retiradaAtual.historicoDevolucoes && retiradaAtual.historicoDevolucoes.length > 0 && (
+                  <div className="bg-[#121c13] border border-[#2b542a] p-3 rounded text-xs space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-[#86efac] uppercase text-[11px]">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#86efac]" />
+                      <span>HISTÓRICO DE DEVOLUÇÕES ANTERIORES DESTA CAUTELA:</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-[#c3dec0]">
+                      {retiradaAtual.historicoDevolucoes.map((dev, idx) => (
+                        <div key={dev.id || idx} className="bg-[#0b120c] p-2 rounded border border-[#1e331c] flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <div>
+                            <strong className="text-white">{idx + 1}ª Devolução ({dev.tipoDevolucao})</strong>: recebida pelo armeiro{' '}
+                            <span className="text-[#86efac] font-bold">{dev.armeiroRecebedorPatente} {dev.armeiroRecebedorNome}</span> em{' '}
+                            {formatDataHora(dev.dataHora)}
+                          </div>
+                          <div className="text-[10px] text-[#9eb29b]">
+                            Materiais: {dev.itensDevolvidos?.map((it) => `${it.quantidadeDevolvida}x ${it.materialNome} (${it.nArmamento || 'S/N'})`).join(', ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-[#0c110d] border border-[#232f22] p-3 rounded-sm space-y-2.5">
                   {retiradaAtual.itens.map((item) => {
                     const isJaRecolhido = (item.quantidadeDevolvida ?? 0) >= item.quantidade;

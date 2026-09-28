@@ -441,7 +441,7 @@ export const GoogleSheetsIntegration: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
             <div className="p-2 bg-[#121812] border border-[#1f281e] rounded">
               <strong className="text-[#86efac] block">1. CAUTELAS_HISTORICO</strong>
-              <span className="text-[10px]">Número da Cautela, Policial, Armeiro, Itens, Datas, Tiros disparados, BO e Hash de Segurança.</span>
+              <span className="text-[10px]">Saídas e devoluções parciais em linhas separadas (com apenas o material devolvido e o armeiro recebedor de cada entrega).</span>
             </div>
             <div className="p-2 bg-[#121812] border border-[#1f281e] rounded">
               <strong className="text-[#86efac] block">2. ESTOQUE_ARMORIAL</strong>

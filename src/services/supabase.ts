@@ -113,6 +113,29 @@ CREATE TABLE IF NOT EXISTS auditoria_logs (
   retirada_id TEXT
 );
 
+-- 6. TABELA DE EVENTOS DE DEVOLUÇÃO (HISTÓRICO LINHA POR LINHA DE DEVOLUÇÕES PARCIAIS E TOTAIS)
+CREATE TABLE IF NOT EXISTS devolucoes_eventos (
+  id TEXT PRIMARY KEY,
+  retirada_id TEXT NOT NULL,
+  numero_cautela TEXT NOT NULL,
+  data_hora TIMESTAMPTZ NOT NULL,
+  tipo_devolucao TEXT NOT NULL DEFAULT 'TOTAL',
+  militar_nome TEXT NOT NULL,
+  militar_guerra TEXT NOT NULL,
+  militar_matricula TEXT NOT NULL,
+  militar_patente TEXT NOT NULL,
+  armeiro_recebedor_id TEXT,
+  armeiro_recebedor_nome TEXT NOT NULL,
+  armeiro_recebedor_patente TEXT,
+  materiais_devolvidos_resumo TEXT NOT NULL,
+  itens_devolvidos JSONB NOT NULL DEFAULT '[]'::jsonb,
+  tiros_consumidos INTEGER DEFAULT 0,
+  numero_boletim_ocorrencia TEXT,
+  observacoes TEXT,
+  hash_assinatura TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ============================================================================
 -- POLÍTICAS DE ACESSO (PERMISSÕES PARA API REST DO CLIENTE)
 -- ============================================================================
@@ -123,11 +146,18 @@ ALTER TABLE armeiros DISABLE ROW LEVEL SECURITY;
 ALTER TABLE estoque DISABLE ROW LEVEL SECURITY;
 ALTER TABLE retiradas DISABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE devolucoes_eventos DISABLE ROW LEVEL SECURITY;
 
 -- Políticas de contingência para o caso do RLS ser reativado pelo Supabase:
 ALTER TABLE militares_servico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE armeiros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE estoque ENABLE ROW LEVEL SECURITY;
+ALTER TABLE retiradas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auditoria_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE devolucoes_eventos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anon acesso total devolucoes_eventos" ON devolucoes_eventos;
+CREATE POLICY "Anon acesso total devolucoes_eventos" ON devolucoes_eventos FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 ALTER TABLE retiradas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria_logs ENABLE ROW LEVEL SECURITY;
 
@@ -539,6 +569,7 @@ export async function pushDadosParaSupabase(dados: {
         quantidade_total_tiros_consumidos: r.quantidadeTotalTirosConsumidos || 0,
         numero_boletim_ocorrencia: r.numeroBoletimOcorrencia || null,
         observacoes_gerais: r.observacoesGerais || null,
+        historico_devolucoes: r.historicoDevolucoes || [],
       }));
       const resp = await fetch(`${url}/rest/v1/retiradas`, {
         method: 'POST',
@@ -546,6 +577,51 @@ export async function pushDadosParaSupabase(dados: {
         body: JSON.stringify(payloadRetiradas),
       });
       if (!resp.ok) erros.push('Tabela retiradas');
+
+      // 4.1. Tabela de Eventos de Devolução (Linha por linha de cada devolução parcial ou final)
+      const todosEventosDevolucao: any[] = [];
+      dados.retiradas.forEach((r) => {
+        if (r.historicoDevolucoes && r.historicoDevolucoes.length > 0) {
+          r.historicoDevolucoes.forEach((ev) => {
+            const resumoItens = (ev.itensDevolvidos || [])
+              .map((it) => `${it.quantidadeDevolvida}x ${it.materialNome} (Série: ${it.nArmamento || 'S/N'})`)
+              .join(' | ');
+
+            todosEventosDevolucao.push({
+              id: ev.id,
+              retirada_id: r.id,
+              numero_cautela: r.numeroCautela,
+              data_hora: ev.dataHora,
+              tipo_devolucao: ev.tipoDevolucao,
+              militar_nome: ev.militarDevolucaoNome,
+              militar_guerra: ev.militarDevolucaoGuerra,
+              militar_patente: ev.militarDevolucaoPatente,
+              militar_matricula: ev.militarDevolucaoMatricula || r.militarServicoMatricula,
+              armeiro_recebedor_id: ev.armeiroRecebedorId,
+              armeiro_recebedor_nome: ev.armeiroRecebedorNome,
+              armeiro_recebedor_patente: ev.armeiroRecebedorPatente,
+              materiais_devolvidos_resumo: resumoItens,
+              itens_devolvidos: ev.itensDevolvidos || [],
+              tiros_consumidos: ev.quantidadeTotalTirosConsumidos || 0,
+              numero_boletim_ocorrencia: ev.numeroBoletimOcorrencia || null,
+              observacoes: ev.observacoes || null,
+              hash_assinatura: ev.hashAssinaturaDevolucao,
+            });
+          });
+        }
+      });
+
+      if (todosEventosDevolucao.length > 0) {
+        try {
+          await fetch(`${url}/rest/v1/devolucoes_eventos`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(todosEventosDevolucao),
+          });
+        } catch {
+          // Fallback silencioso se o usuário ainda não tiver rodado o DDL da tabela devolucoes_eventos
+        }
+      }
     }
 
     // 5. Auditoria Logs
@@ -719,6 +795,7 @@ export async function pullDadosDoSupabase(): Promise<{
           quantidadeTotalTirosConsumidos: d.quantidade_total_tiros_consumidos,
           numeroBoletimOcorrencia: d.numero_boletim_ocorrencia,
           observacoesGerais: d.observacoes_gerais,
+          historicoDevolucoes: d.historico_devolucoes || [],
         }));
       }
     } catch {}

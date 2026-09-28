@@ -9,6 +9,7 @@ import {
   EstadoConservacao,
   StatusRetirada,
   StatusEstoque,
+  EventoDevolucao,
 } from '../types';
 import { pushDadosParaSupabase, hasCustomSupabaseConfig } from './supabase';
 import { sheetsService } from './sheetsService';
@@ -822,7 +823,12 @@ class DatabaseService {
 
   public getRetiradasNaRua(): Retirada[] {
     return this.getRetiradas().filter(
-      (r) => r.status === 'EM SERVIÇO' || r.status === 'MISSÃO' || r.status === 'CAUTELADO' || r.status === 'SEPARANDO'
+      (r) =>
+        r.status === 'EM SERVIÇO' ||
+        r.status === 'MISSÃO' ||
+        r.status === 'CAUTELADO' ||
+        r.status === 'SEPARANDO' ||
+        r.status === 'DEVOLUÇÃO PARCIAL'
     );
   }
 
@@ -1145,23 +1151,48 @@ class DatabaseService {
 
     let totalConsumidoTiros = 0;
     let todosRecolhidos = true;
+    const itensDevolvidosNestaEntrega: EventoDevolucao['itensDevolvidos'] = [];
 
     for (const conf of params.itensConferencia) {
       const itemCart = ret.itens.find((i) => i.id === conf.carrinhoId);
       if (itemCart) {
-        itemCart.quantidadeDevolvida = (itemCart.quantidadeDevolvida || 0) + conf.quantidadeDevolvida;
-        itemCart.quantidadeConsumida = (itemCart.quantidadeConsumida || 0) + conf.quantidadeConsumida;
+        const qtdDevolvidaAgora = conf.quantidadeDevolvida || 0;
+        const qtdConsumidaAgora = conf.quantidadeConsumida || 0;
+
+        itemCart.quantidadeDevolvida = (itemCart.quantidadeDevolvida || 0) + qtdDevolvidaAgora;
+        itemCart.quantidadeConsumida = (itemCart.quantidadeConsumida || 0) + qtdConsumidaAgora;
         itemCart.estadoDevolucao = conf.estadoDevolucao;
-        totalConsumidoTiros += conf.quantidadeConsumida;
+        totalConsumidoTiros += qtdConsumidaAgora;
+
+        if (qtdDevolvidaAgora > 0 || qtdConsumidaAgora > 0) {
+          itensDevolvidosNestaEntrega.push({
+            carrinhoId: itemCart.id,
+            estoqueId: itemCart.estoqueId,
+            categoria: itemCart.categoria,
+            materialNome: itemCart.materialNome,
+            nArmamento: itemCart.nArmamento,
+            calibre: itemCart.calibre,
+            quantidadeDevolvida: qtdDevolvidaAgora,
+            quantidadeConsumida: qtdConsumidaAgora,
+            motivoConsumo: conf.motivoConsumo,
+            estadoDevolucao: conf.estadoDevolucao,
+            observacao: conf.observacao,
+          });
+        }
 
         // Retorna ao estoque os devolvidos
         const estIdx = estoque.findIndex((e) => e.id === itemCart.estoqueId);
-        if (estIdx >= 0 && conf.quantidadeDevolvida > 0) {
-          if (estoque[estIdx].categoria === 'ARMAMENTO' || estoque[estIdx].categoria === 'PROTEÇÃO' || estoque[estIdx].categoria === 'COMUNICAÇÃO') {
+        if (estIdx >= 0 && qtdDevolvidaAgora > 0) {
+          if (
+            estoque[estIdx].categoria === 'ARMAMENTO' ||
+            estoque[estIdx].categoria === 'PROTEÇÃO' ||
+            estoque[estIdx].categoria === 'COMUNICAÇÃO'
+          ) {
             estoque[estIdx].status = 'DISPONÍVEL';
             estoque[estIdx].quantidadeDisponivel = 1;
           } else {
-            estoque[estIdx].quantidadeDisponivel = (estoque[estIdx].quantidadeDisponivel || 0) + conf.quantidadeDevolvida;
+            estoque[estIdx].quantidadeDisponivel =
+              (estoque[estIdx].quantidadeDisponivel || 0) + qtdDevolvidaAgora;
           }
         }
 
@@ -1175,32 +1206,76 @@ class DatabaseService {
     this.save(STORAGE_KEYS.ESTOQUE, estoque);
 
     const hashDev = `devolucao-${Date.now()}-${ret.numeroCautela}`;
-    ret.dataDevolucao = new Date().toISOString();
+    const dataDevAgora = new Date().toISOString();
+    const armeiroNomeAgora = arm?.nomeGuerra || arm?.nome || 'VENTURA';
+    const armeiroPatenteAgora = arm?.patente || 'Sd';
+
+    const eventoDevolucao: EventoDevolucao = {
+      id: `dev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      retiradaId: ret.id,
+      numeroCautela: ret.numeroCautela,
+      dataHora: dataDevAgora,
+      tipoDevolucao: todosRecolhidos ? 'TOTAL' : 'PARCIAL',
+      militarDevolucaoId: mil?.id || ret.militarServicoId,
+      militarDevolucaoNome: mil?.nome || ret.militarServicoNome,
+      militarDevolucaoGuerra: mil?.nomeGuerra || ret.militarServicoGuerra,
+      militarDevolucaoPatente: mil?.patente || ret.militarServicoPatente,
+      militarDevolucaoMatricula: mil?.matricula || ret.militarServicoMatricula,
+      armeiroRecebedorId: arm?.id || ret.militarReservaId,
+      armeiroRecebedorNome: armeiroNomeAgora,
+      armeiroRecebedorPatente: armeiroPatenteAgora,
+      itensDevolvidos: itensDevolvidosNestaEntrega,
+      houveDisparos: params.houveDisparos || totalConsumidoTiros > 0,
+      quantidadeTotalTirosConsumidos: totalConsumidoTiros,
+      numeroBoletimOcorrencia: params.numeroBoletimOcorrencia,
+      observacoes: params.observacoesGerais,
+      hashAssinaturaDevolucao: hashDev,
+    };
+
+    if (!ret.historicoDevolucoes) {
+      ret.historicoDevolucoes = [];
+    }
+    ret.historicoDevolucoes.push(eventoDevolucao);
+
+    // Constrói o histórico composto dos armeiros recebedores para não sobrescrever nenhum armeiro anterior
+    const listaArmeirosRecebedores = ret.historicoDevolucoes.map(
+      (h, i) => `${h.armeiroRecebedorPatente} ${h.armeiroRecebedorNome} (${i + 1}ª ${h.tipoDevolucao === 'PARCIAL' ? 'Parcial' : 'Final'})`
+    );
+    ret.armeiroRecebedorNome = listaArmeirosRecebedores.join(' / ');
+    ret.armeiroRecebedorId = arm?.id || ret.militarReservaId;
+    ret.armeiroRecebedorPatente = armeiroPatenteAgora;
+    ret.dataDevolucao = dataDevAgora;
     ret.militarDevolucaoId = mil?.id || ret.militarServicoId;
     ret.militarDevolucaoNome = mil?.nome || ret.militarServicoNome;
     ret.militarDevolucaoPatente = mil?.patente || ret.militarServicoPatente;
-    ret.armeiroRecebedorId = arm?.id || ret.militarReservaId;
-    ret.armeiroRecebedorNome = arm?.nomeGuerra || ret.militarReservaNome;
     ret.passwordDevolucaoValidada = true;
     ret.hashAssinaturaDevolucao = hashDev;
     ret.houveDisparos = params.houveDisparos || totalConsumidoTiros > 0;
-    ret.quantidadeTotalTirosConsumidos = totalConsumidoTiros;
-    ret.numeroBoletimOcorrencia = params.numeroBoletimOcorrencia;
-    ret.observacoesGerais = params.observacoesGerais;
+    ret.quantidadeTotalTirosConsumidos = (ret.quantidadeTotalTirosConsumidos || 0) + totalConsumidoTiros;
+    if (params.numeroBoletimOcorrencia) ret.numeroBoletimOcorrencia = params.numeroBoletimOcorrencia;
+    if (params.observacoesGerais) {
+      ret.observacoesGerais = (ret.observacoesGerais ? ret.observacoesGerais + ' | ' : '') + params.observacoesGerais;
+    }
 
     if (todosRecolhidos) {
       ret.status = 'DEVOLVIDO';
+    } else {
+      ret.status = 'DEVOLUÇÃO PARCIAL';
     }
 
     list[idx] = ret;
     this.save(STORAGE_KEYS.RETIRADAS, list);
 
+    const resumoMateriaisDevolvidos = itensDevolvidosNestaEntrega
+      .map((it) => `${it.quantidadeDevolvida}x ${it.materialNome} (${it.nArmamento || 'S/N'})`)
+      .join(', ');
+
     this.registrarAuditoria({
       tipoEvento: todosRecolhidos ? 'DEVOLUCAO_TOTAL' : 'DEVOLUCAO_PARCIAL',
-      descricao: `Devolução registrada na cautela ${ret.numeroCautela} por ${ret.militarServicoPatente} ${ret.militarServicoGuerra}.${totalConsumidoTiros > 0 ? ` Consumo: ${totalConsumidoTiros} tiros (BO: ${params.numeroBoletimOcorrencia || 'Sem BO'})` : ''}`,
+      descricao: `Devolução ${todosRecolhidos ? 'TOTAL' : 'PARCIAL'} registrada na cautela ${ret.numeroCautela} por ${ret.militarServicoPatente} ${ret.militarServicoGuerra}. Materiais recebidos por ${armeiroPatenteAgora} ${armeiroNomeAgora}: [${resumoMateriaisDevolvidos || 'Conferido'}].${totalConsumidoTiros > 0 ? ` Consumo: ${totalConsumidoTiros} tiros (BO: ${params.numeroBoletimOcorrencia || 'Sem BO'})` : ''}`,
       retiradaId: ret.numeroCautela,
       militarEnvolvido: `${ret.militarServicoPatente} ${ret.militarServicoGuerra}`,
-      armeiroResponsavel: `${arm?.patente || 'Sd'} ${arm?.nomeGuerra || 'VENTURA'}`,
+      armeiroResponsavel: `${armeiroPatenteAgora} ${armeiroNomeAgora}`,
       hashValidacao: hashDev,
     });
 

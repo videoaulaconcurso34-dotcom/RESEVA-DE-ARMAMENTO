@@ -99,6 +99,15 @@ const STATUS_CONFIG: Array<{
     dotColor: 'bg-red-400',
   },
   {
+    id: 'DEVOLUÇÃO PARCIAL',
+    label: 'DEV. PARCIAL',
+    textColor: 'text-[#f59e0b]',
+    borderColor: 'border-[#854d0e]',
+    activeBg: 'bg-[#291b0c]',
+    inactiveBg: 'bg-[#140e06]',
+    dotColor: 'bg-amber-400',
+  },
+  {
     id: 'DEVOLVIDO',
     label: 'DEVOLVIDO',
     textColor: 'text-[#94a3b8]',
@@ -121,6 +130,7 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
   const [statusSelecionados, setStatusSelecionados] = useState<StatusRetirada[]>([
     'EM SERVIÇO',
     'MISSÃO',
+    'DEVOLUÇÃO PARCIAL',
   ]);
 
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODAS');

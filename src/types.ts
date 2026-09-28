@@ -27,6 +27,7 @@ export type StatusRetirada =
   | 'EM SERVIÇO'
   | 'CAUTELADO'
   | 'MISSÃO'
+  | 'DEVOLUÇÃO PARCIAL'
   | 'DEVOLVIDO'
   | 'DIVERGÊNCIA';
 
@@ -114,6 +115,40 @@ export interface ItemCarrinhoRetirada {
   estadoDevolucao?: EstadoConservacao;
 }
 
+export interface EventoDevolucao {
+  id: string;
+  retiradaId: string;
+  numeroCautela: string;
+  dataHora: string;
+  tipoDevolucao: 'PARCIAL' | 'TOTAL';
+  militarDevolucaoId: string;
+  militarDevolucaoNome: string;
+  militarDevolucaoGuerra: string;
+  militarDevolucaoPatente: string;
+  militarDevolucaoMatricula?: string;
+  armeiroRecebedorId: string;
+  armeiroRecebedorNome: string;
+  armeiroRecebedorPatente: string;
+  itensDevolvidos: Array<{
+    carrinhoId: string;
+    estoqueId: string;
+    categoria: CategoriaMaterial;
+    materialNome: string;
+    nArmamento: string;
+    calibre?: string;
+    quantidadeDevolvida: number;
+    quantidadeConsumida?: number;
+    motivoConsumo?: string;
+    estadoDevolucao: EstadoConservacao;
+    observacao?: string;
+  }>;
+  houveDisparos?: boolean;
+  quantidadeTotalTirosConsumidos?: number;
+  numeroBoletimOcorrencia?: string;
+  observacoes?: string;
+  hashAssinaturaDevolucao: string;
+}
+
 export interface Retirada {
   id: string;
   numeroCautela: string;
@@ -141,6 +176,7 @@ export interface Retirada {
   militarDevolucaoPatente?: string;
   armeiroRecebedorId?: string;
   armeiroRecebedorNome?: string;
+  armeiroRecebedorPatente?: string;
   passwordDevolucaoValidada?: boolean;
   hashAssinaturaDevolucao?: string;
   houveDisparos?: boolean;
@@ -148,6 +184,7 @@ export interface Retirada {
   numeroBoletimOcorrencia?: string;
   observacoesGerais?: string;
   itens: ItemCarrinhoRetirada[];
+  historicoDevolucoes?: EventoDevolucao[];
 }
 
 export interface RegistroAuditoria {

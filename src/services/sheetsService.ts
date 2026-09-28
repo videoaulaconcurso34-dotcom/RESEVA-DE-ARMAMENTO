@@ -32,7 +32,8 @@ function doPost(e) {
       sheetCautelas.clearContents();
 
       var headerCautelas = [
-        "Nº Cautela",
+        "Nº Cautela / Evento",
+        "Tipo de Registro",
         "Status",
         "Militar (Posto/Grad)",
         "Nome de Guerra",
@@ -42,40 +43,126 @@ function doPost(e) {
         "Devolução Prevista",
         "Data Devolução",
         "Armeiro Recebedor",
-        "Itens Cautelados",
+        "Materiais desta Linha",
         "Tiros Consumidos",
         "Nº BO",
-        "Motivo / Destino",
+        "Motivo / Observações",
         "Hash SHA-256 (Autenticidade)"
       ];
 
       var rowsCautelas = [headerCautelas];
       for (var i = 0; i < data.retiradas.length; i++) {
         var r = data.retiradas[i];
-        var itensStr = "";
-        if (r.itens && r.itens.length > 0) {
-          itensStr = r.itens.map(function(it) {
+
+        // Se a cautela possui histórico de devoluções registradas:
+        if (r.historicoDevolucoes && r.historicoDevolucoes.length > 0) {
+          // Linha 1: Registro da Saída
+          var itensSaidaStr = (r.itens || []).map(function(it) {
             return (it.quantidade || 1) + "x " + (it.materialNome || "") + " (Série: " + (it.nArmamento || "S/N") + ")";
           }).join(" | ");
-        }
 
-        rowsCautelas.push([
-          r.numeroCautela || "",
-          r.status || "",
-          (r.militarServicoPatente || "") + " " + (r.militarServicoNome || ""),
-          r.militarServicoGuerra || "",
-          r.militarServicoMatricula || "",
-          (r.militarReservaPatente || "") + " " + (r.militarReservaNome || ""),
-          r.dataSaida || "",
-          r.dataDevolucaoPrevista || "",
-          r.dataDevolucao || "",
-          r.armeiroRecebedorNome || "",
-          itensStr,
-          r.quantidadeTotalTirosConsumidos || 0,
-          r.numeroBoletimOcorrencia || "",
-          r.motivoDetalhado || r.tipoDestino || "",
-          r.hashAssinaturaSaida || r.hashAutenticacao || ""
-        ]);
+          rowsCautelas.push([
+            r.numeroCautela || "",
+            "SAÍDA INICIAL",
+            r.status || "",
+            (r.militarServicoPatente || "") + " " + (r.militarServicoNome || ""),
+            r.militarServicoGuerra || "",
+            r.militarServicoMatricula || "",
+            (r.militarReservaPatente || "") + " " + (r.militarReservaNome || ""),
+            r.dataSaida || "",
+            r.dataDevolucaoPrevista || "",
+            "-",
+            "-",
+            itensSaidaStr,
+            0,
+            "",
+            r.motivoDetalhado || r.tipoDestino || "",
+            r.hashAssinaturaSaida || r.hashAutenticacao || ""
+          ]);
+
+          // Linhas seguintes: Cada devolução separada, mostrando APENAS os materiais devolvidos nela e o armeiro que a recebeu
+          for (var d = 0; d < r.historicoDevolucoes.length; d++) {
+            var dev = r.historicoDevolucoes[d];
+            var materiaisDevStr = (dev.itensDevolvidos || []).map(function(it) {
+              return (it.quantidadeDevolvida || 1) + "x " + (it.materialNome || "") + " (Série: " + (it.nArmamento || "S/N") + ")";
+            }).join(" | ");
+
+            rowsCautelas.push([
+              (r.numeroCautela || "") + " [" + (d + 1) + "ª DEV. " + dev.tipoDevolucao + "]",
+              (d + 1) + "ª DEVOLUÇÃO (" + dev.tipoDevolucao + ")",
+              dev.tipoDevolucao === "PARCIAL" ? "DEVOLUÇÃO PARCIAL" : "DEVOLVIDO",
+              (dev.militarDevolucaoPatente || r.militarServicoPatente || "") + " " + (dev.militarDevolucaoNome || r.militarServicoNome || ""),
+              dev.militarDevolucaoGuerra || r.militarServicoGuerra || "",
+              dev.militarDevolucaoMatricula || r.militarServicoMatricula || "",
+              (r.militarReservaPatente || "") + " " + (r.militarReservaNome || ""),
+              r.dataSaida || "",
+              r.dataDevolucaoPrevista || "",
+              dev.dataHora || "",
+              (dev.armeiroRecebedorPatente || "") + " " + (dev.armeiroRecebedorNome || ""),
+              materiaisDevStr || "Conferido",
+              dev.quantidadeTotalTirosConsumidos || 0,
+              dev.numeroBoletimOcorrencia || "",
+              dev.observacoes || "Devolução registrada",
+              dev.hashAssinaturaDevolucao || ""
+            ]);
+          }
+
+          // Se a cautela ainda estiver com materiais pendentes na rua:
+          if (r.status === "DEVOLUÇÃO PARCIAL") {
+            var itensPendentes = (r.itens || []).filter(function(it) {
+              var saldo = (it.quantidade || 0) - (it.quantidadeDevolvida || 0) - (it.quantidadeConsumida || 0);
+              return saldo > 0;
+            }).map(function(it) {
+              var saldo = (it.quantidade || 0) - (it.quantidadeDevolvida || 0) - (it.quantidadeConsumida || 0);
+              return saldo + "x " + (it.materialNome || "") + " (Série: " + (it.nArmamento || "S/N") + ")";
+            }).join(" | ");
+
+            if (itensPendentes) {
+              rowsCautelas.push([
+                (r.numeroCautela || "") + " [PENDENTE NA RUA]",
+                "SALDO PENDENTE",
+                "EM SERVIÇO (PARCIAL)",
+                (r.militarServicoPatente || "") + " " + (r.militarServicoNome || ""),
+                r.militarServicoGuerra || "",
+                r.militarServicoMatricula || "",
+                (r.militarReservaPatente || "") + " " + (r.militarReservaNome || ""),
+                r.dataSaida || "",
+                r.dataDevolucaoPrevista || "",
+                "Aguardando Devolução",
+                "-",
+                itensPendentes,
+                0,
+                "",
+                "Material em posse do policial aguardando devolução",
+                ""
+              ]);
+            }
+          }
+        } else {
+          // Cautela única (sem devoluções ou em andamento)
+          var itensNormalStr = (r.itens || []).map(function(it) {
+            return (it.quantidade || 1) + "x " + (it.materialNome || "") + " (Série: " + (it.nArmamento || "S/N") + ")";
+          }).join(" | ");
+
+          rowsCautelas.push([
+            r.numeroCautela || "",
+            "CAUTELA INTEGRAL",
+            r.status || "",
+            (r.militarServicoPatente || "") + " " + (r.militarServicoNome || ""),
+            r.militarServicoGuerra || "",
+            r.militarServicoMatricula || "",
+            (r.militarReservaPatente || "") + " " + (r.militarReservaNome || ""),
+            r.dataSaida || "",
+            r.dataDevolucaoPrevista || "",
+            r.dataDevolucao || "-",
+            r.armeiroRecebedorNome || "-",
+            itensNormalStr,
+            r.quantidadeTotalTirosConsumidos || 0,
+            r.numeroBoletimOcorrencia || "",
+            r.motivoDetalhado || r.tipoDestino || "",
+            r.hashAssinaturaSaida || r.hashAutenticacao || ""
+          ]);
+        }
       }
 
       sheetCautelas.getRange(1, 1, rowsCautelas.length, headerCautelas.length).setValues(rowsCautelas);
@@ -278,7 +365,8 @@ export const sheetsService = {
 
   gerarCSVRetiradas: (retiradas: Retirada[]): string => {
     const headers = [
-      'Nº Cautela',
+      'Nº Cautela / Evento',
+      'Tipo Registro',
       'Status',
       'Posto Militar',
       'Nome Guerra',
@@ -288,35 +376,134 @@ export const sheetsService = {
       'Data Devolução Prevista',
       'Data Devolução Efetiva',
       'Armeiro Recebedor',
-      'Itens Cautelados',
+      'Materiais da Linha',
       'Tiros Consumidos',
       'Nº BO',
       'Destino/Motivo',
       'Hash SHA-256',
     ];
 
-    const rows = retiradas.map((r) => {
-      const itensStr = (r.itens || [])
-        .map((it) => `${it.quantidade}x ${it.materialNome} (Série: ${it.nArmamento || 'S/N'})`)
-        .join(' ; ');
+    const rows: string[] = [];
 
-      return [
-        `"${r.numeroCautela || ''}"`,
-        `"${r.status || ''}"`,
-        `"${r.militarServicoPatente || ''}"`,
-        `"${r.militarServicoGuerra || ''}"`,
-        `"${r.militarServicoMatricula || ''}"`,
-        `"${r.militarReservaNome || ''}"`,
-        `"${r.dataSaida || ''}"`,
-        `"${r.dataDevolucaoPrevista || ''}"`,
-        `"${r.dataDevolucao || ''}"`,
-        `"${r.armeiroRecebedorNome || ''}"`,
-        `"${itensStr}"`,
-        `"${r.quantidadeTotalTirosConsumidos || 0}"`,
-        `"${r.numeroBoletimOcorrencia || ''}"`,
-        `"${r.motivoDetalhado || r.tipoDestino || ''}"`,
-        `"${r.hashAssinaturaSaida || r.hashAutenticacao || ''}"`,
-      ].join(';');
+    retiradas.forEach((r) => {
+      if (r.historicoDevolucoes && r.historicoDevolucoes.length > 0) {
+        // Linha da Saída Inicial
+        const itensSaidaStr = (r.itens || [])
+          .map((it) => `${it.quantidade}x ${it.materialNome} (Série: ${it.nArmamento || 'S/N'})`)
+          .join(' ; ');
+
+        rows.push(
+          [
+            `"${r.numeroCautela || ''}"`,
+            `"SAÍDA INICIAL"`,
+            `"${r.status || ''}"`,
+            `"${r.militarServicoPatente || ''}"`,
+            `"${r.militarServicoGuerra || ''}"`,
+            `"${r.militarServicoMatricula || ''}"`,
+            `"${r.militarReservaNome || ''}"`,
+            `"${r.dataSaida || ''}"`,
+            `"${r.dataDevolucaoPrevista || ''}"`,
+            `"-"`,
+            `"-"`,
+            `"${itensSaidaStr}"`,
+            `"0"`,
+            `""`,
+            `"${r.motivoDetalhado || r.tipoDestino || ''}"`,
+            `"${r.hashAssinaturaSaida || r.hashAutenticacao || ''}"`,
+          ].join(';')
+        );
+
+        // Linha para cada devolução (mostrando APENAS os materiais devolvidos nela e o armeiro que recebeu)
+        r.historicoDevolucoes.forEach((dev, idx) => {
+          const itensDevStr = (dev.itensDevolvidos || [])
+            .map((it) => `${it.quantidadeDevolvida}x ${it.materialNome} (Série: ${it.nArmamento || 'S/N'})`)
+            .join(' ; ');
+
+          rows.push(
+            [
+              `"${r.numeroCautela} [${idx + 1}ª DEV. ${dev.tipoDevolucao}]"`,
+              `"${idx + 1}ª DEVOLUÇÃO (${dev.tipoDevolucao})"`,
+              `"${dev.tipoDevolucao === 'PARCIAL' ? 'DEVOLUÇÃO PARCIAL' : 'DEVOLVIDO'}"`,
+              `"${dev.militarDevolucaoPatente || r.militarServicoPatente || ''}"`,
+              `"${dev.militarDevolucaoGuerra || r.militarServicoGuerra || ''}"`,
+              `"${dev.militarDevolucaoMatricula || r.militarServicoMatricula || ''}"`,
+              `"${r.militarReservaNome || ''}"`,
+              `"${r.dataSaida || ''}"`,
+              `"${r.dataDevolucaoPrevista || ''}"`,
+              `"${dev.dataHora || ''}"`,
+              `"${dev.armeiroRecebedorPatente || ''} ${dev.armeiroRecebedorNome || ''}"`,
+              `"${itensDevStr || 'Conferido'}"`,
+              `"${dev.quantidadeTotalTirosConsumidos || 0}"`,
+              `"${dev.numeroBoletimOcorrencia || ''}"`,
+              `"${dev.observacoes || 'Devolução registrada'}"`,
+              `"${dev.hashAssinaturaDevolucao || ''}"`,
+            ].join(';')
+          );
+        });
+
+        // Se ainda estiver com materiais pendentes na rua
+        if (r.status === 'DEVOLUÇÃO PARCIAL') {
+          const pendentesStr = (r.itens || [])
+            .filter((it) => {
+              const saldo = (it.quantidade || 0) - (it.quantidadeDevolvida || 0) - (it.quantidadeConsumida || 0);
+              return saldo > 0;
+            })
+            .map((it) => {
+              const saldo = (it.quantidade || 0) - (it.quantidadeDevolvida || 0) - (it.quantidadeConsumida || 0);
+              return `${saldo}x ${it.materialNome} (Série: ${it.nArmamento || 'S/N'})`;
+            })
+            .join(' ; ');
+
+          if (pendentesStr) {
+            rows.push(
+              [
+                `"${r.numeroCautela} [PENDENTE NA RUA]"`,
+                `"SALDO PENDENTE"`,
+                `"EM SERVIÇO (PARCIAL)"`,
+                `"${r.militarServicoPatente || ''}"`,
+                `"${r.militarServicoGuerra || ''}"`,
+                `"${r.militarServicoMatricula || ''}"`,
+                `"${r.militarReservaNome || ''}"`,
+                `"${r.dataSaida || ''}"`,
+                `"${r.dataDevolucaoPrevista || ''}"`,
+                `"Aguardando Devolução"`,
+                `"-"`,
+                `"${pendentesStr}"`,
+                `"0"`,
+                `""`,
+                `"Material em posse do policial aguardando devolução"`,
+                `""`,
+              ].join(';')
+            );
+          }
+        }
+      } else {
+        // Cautela sem devolução registrada ainda
+        const itensStr = (r.itens || [])
+          .map((it) => `${it.quantidade}x ${it.materialNome} (Série: ${it.nArmamento || 'S/N'})`)
+          .join(' ; ');
+
+        rows.push(
+          [
+            `"${r.numeroCautela || ''}"`,
+            `"CAUTELA INTEGRAL"`,
+            `"${r.status || ''}"`,
+            `"${r.militarServicoPatente || ''}"`,
+            `"${r.militarServicoGuerra || ''}"`,
+            `"${r.militarServicoMatricula || ''}"`,
+            `"${r.militarReservaNome || ''}"`,
+            `"${r.dataSaida || ''}"`,
+            `"${r.dataDevolucaoPrevista || ''}"`,
+            `"${r.dataDevolucao || '-'}"`,
+            `"${r.armeiroRecebedorNome || '-'}"`,
+            `"${itensStr}"`,
+            `"${r.quantidadeTotalTirosConsumidos || 0}"`,
+            `"${r.numeroBoletimOcorrencia || ''}"`,
+            `"${r.motivoDetalhado || r.tipoDestino || ''}"`,
+            `"${r.hashAssinaturaSaida || r.hashAutenticacao || ''}"`,
+          ].join(';')
+        );
+      }
     });
 
     return [headers.join(';'), ...rows].join('\r\n');
