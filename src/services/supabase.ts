@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS retiradas (
   data_saida TIMESTAMPTZ NOT NULL,
   data_devolucao_prevista TIMESTAMPTZ,
   data_devolucao TIMESTAMPTZ,
+  data_ultima_devolucao_parcial TIMESTAMPTZ,
   militar_servico_id TEXT,
   militar_servico_nome TEXT NOT NULL,
   militar_servico_guerra TEXT NOT NULL,
@@ -82,6 +83,9 @@ CREATE TABLE IF NOT EXISTS retiradas (
   hash_assinatura_saida TEXT,
   hash_autenticacao TEXT,
   itens JSONB NOT NULL DEFAULT '[]'::jsonb,
+  materiais_saida_resumo TEXT,
+  materiais_devolvidos_resumo TEXT,
+  materiais_pendentes_resumo TEXT,
   militar_devolucao_id TEXT,
   militar_devolucao_nome TEXT,
   militar_devolucao_patente TEXT,
@@ -94,6 +98,12 @@ CREATE TABLE IF NOT EXISTS retiradas (
   observacoes_gerais TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migrações seguras caso a tabela já exista
+ALTER TABLE retiradas ADD COLUMN IF NOT EXISTS data_ultima_devolucao_parcial TIMESTAMPTZ;
+ALTER TABLE retiradas ADD COLUMN IF NOT EXISTS materiais_saida_resumo TEXT;
+ALTER TABLE retiradas ADD COLUMN IF NOT EXISTS materiais_devolvidos_resumo TEXT;
+ALTER TABLE retiradas ADD COLUMN IF NOT EXISTS materiais_pendentes_resumo TEXT;
 
 -- 5. TABELA DE AUDITORIA E LOGS DO SISTEMA
 CREATE TABLE IF NOT EXISTS auditoria_logs (
@@ -128,6 +138,7 @@ CREATE TABLE IF NOT EXISTS devolucoes_eventos (
   armeiro_recebedor_nome TEXT NOT NULL,
   armeiro_recebedor_patente TEXT,
   materiais_devolvidos_resumo TEXT NOT NULL,
+  materiais_saldo_pendente_resumo TEXT,
   itens_devolvidos JSONB NOT NULL DEFAULT '[]'::jsonb,
   tiros_consumidos INTEGER DEFAULT 0,
   numero_boletim_ocorrencia TEXT,
@@ -135,6 +146,8 @@ CREATE TABLE IF NOT EXISTS devolucoes_eventos (
   hash_assinatura TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE devolucoes_eventos ADD COLUMN IF NOT EXISTS materiais_saldo_pendente_resumo TEXT;
 
 -- ============================================================================
 -- POLÍTICAS DE ACESSO (PERMISSÕES PARA API REST DO CLIENTE)
@@ -538,39 +551,75 @@ export async function pushDadosParaSupabase(dados: {
 
     // 4. Retiradas
     if (dados.retiradas.length > 0) {
-      const payloadRetiradas = dados.retiradas.map((r) => ({
-        id: r.id,
-        numero_cautela: r.numeroCautela,
-        status: r.status,
-        tipo_destino: r.tipoDestino,
-        motivo_detalhado: r.motivoDetalhado || '',
-        prazo_previsto_horas: r.prazoPrevistoHoras || 24,
-        data_saida: r.dataSaida,
-        data_devolucao_prevista: r.dataDevolucaoPrevista || null,
-        data_devolucao: r.dataDevolucao || null,
-        militar_servico_id: r.militarServicoId,
-        militar_servico_nome: r.militarServicoNome,
-        militar_servico_guerra: r.militarServicoGuerra,
-        militar_servico_patente: r.militarServicoPatente,
-        militar_servico_matricula: r.militarServicoMatricula,
-        militar_reserva_id: r.militarReservaId,
-        militar_reserva_nome: r.militarReservaNome,
-        militar_reserva_patente: r.militarReservaPatente || '',
-        hash_assinatura_saida: r.hashAssinaturaSaida || r.hashAutenticacao || '',
-        hash_autenticacao: r.hashAutenticacao || r.hashAssinaturaSaida || '',
-        itens: r.itens || [],
-        militar_devolucao_id: r.militarDevolucaoId || null,
-        militar_devolucao_nome: r.militarDevolucaoNome || null,
-        militar_devolucao_patente: r.militarDevolucaoPatente || null,
-        armeiro_recebedor_id: r.armeiroRecebedorId || null,
-        armeiro_recebedor_nome: r.armeiroRecebedorNome || null,
-        hash_assinatura_devolucao: r.hashAssinaturaDevolucao || null,
-        houve_disparos: r.houveDisparos ?? false,
-        quantidade_total_tiros_consumidos: r.quantidadeTotalTirosConsumidos || 0,
-        numero_boletim_ocorrencia: r.numeroBoletimOcorrencia || null,
-        observacoes_gerais: r.observacoesGerais || null,
-        historico_devolucoes: r.historicoDevolucoes || [],
-      }));
+      const payloadRetiradas = dados.retiradas.map((r) => {
+        const devolvidos: string[] = [];
+        const pendentes: string[] = [];
+        const saidaOriginal: string[] = [];
+
+        (r.itens || []).forEach((it) => {
+          const original = it.quantidade || 1;
+          const dev = it.quantidadeDevolvida || 0;
+          const cons = it.quantidadeConsumida || 0;
+          const pend = Math.max(0, original - dev - cons);
+
+          saidaOriginal.push(`${original}x ${it.materialNome} (${it.nArmamento || 'S/N'})`);
+          if (dev > 0) {
+            devolvidos.push(`${dev}x ${it.materialNome} (${it.nArmamento || 'S/N'})`);
+          }
+          if (pend > 0) {
+            pendentes.push(`${pend}x ${it.materialNome} (${it.nArmamento || 'S/N'})`);
+          }
+        });
+
+        return {
+          id: r.id,
+          numero_cautela: r.numeroCautela,
+          status: r.status,
+          tipo_destino: r.tipoDestino,
+          motivo_detalhado: r.motivoDetalhado || '',
+          prazo_previsto_horas: r.prazoPrevistoHoras || 24,
+          data_saida: r.dataSaida,
+          data_devolucao_prevista: r.dataDevolucaoPrevista || null,
+          data_devolucao: r.status === 'DEVOLVIDO' ? (r.dataDevolucao || null) : null,
+          data_ultima_devolucao_parcial: r.status === 'DEVOLUÇÃO PARCIAL' ? (r.dataUltimaDevolucaoParcial || null) : null,
+          militar_servico_id: r.militarServicoId,
+          militar_servico_nome: r.militarServicoNome,
+          militar_servico_guerra: r.militarServicoGuerra,
+          militar_servico_patente: r.militarServicoPatente,
+          militar_servico_matricula: r.militarServicoMatricula,
+          militar_reserva_id: r.militarReservaId,
+          militar_reserva_nome: r.militarReservaNome,
+          militar_reserva_patente: r.militarReservaPatente || '',
+          hash_assinatura_saida: r.hashAssinaturaSaida || r.hashAutenticacao || '',
+          hash_autenticacao: r.hashAutenticacao || r.hashAssinaturaSaida || '',
+          itens: (r.itens || []).map((it) => ({
+            ...it,
+            quantidadeDevolvida: it.quantidadeDevolvida || 0,
+            quantidadeConsumida: it.quantidadeConsumida || 0,
+            quantidadePendente: Math.max(0, it.quantidade - (it.quantidadeDevolvida || 0) - (it.quantidadeConsumida || 0)),
+            statusItem:
+              (it.quantidadeDevolvida || 0) >= it.quantidade
+                ? 'DEVOLVIDO'
+                : (it.quantidadeConsumida || 0) >= it.quantidade
+                ? 'CONSUMIDO'
+                : 'PENDENTE / NA RUA',
+          })),
+          materiais_saida_resumo: saidaOriginal.join(' | '),
+          materiais_devolvidos_resumo: devolvidos.length > 0 ? devolvidos.join(' | ') : 'Nenhum material devolvido ainda',
+          materiais_pendentes_resumo: pendentes.length > 0 ? pendentes.join(' | ') : 'Nenhum material pendente (100% devolvido)',
+          militar_devolucao_id: r.militarDevolucaoId || null,
+          militar_devolucao_nome: r.militarDevolucaoNome || null,
+          militar_devolucao_patente: r.militarDevolucaoPatente || null,
+          armeiro_recebedor_id: r.armeiroRecebedorId || null,
+          armeiro_recebedor_nome: r.armeiroRecebedorNome || null,
+          hash_assinatura_devolucao: r.hashAssinaturaDevolucao || null,
+          houve_disparos: r.houveDisparos ?? false,
+          quantidade_total_tiros_consumidos: r.quantidadeTotalTirosConsumidos || 0,
+          numero_boletim_ocorrencia: r.numeroBoletimOcorrencia || null,
+          observacoes_gerais: r.observacoesGerais || null,
+          historico_devolucoes: r.historicoDevolucoes || [],
+        };
+      });
       const resp = await fetch(`${url}/rest/v1/retiradas`, {
         method: 'POST',
         headers,
@@ -600,7 +649,8 @@ export async function pushDadosParaSupabase(dados: {
               armeiro_recebedor_id: ev.armeiroRecebedorId,
               armeiro_recebedor_nome: ev.armeiroRecebedorNome,
               armeiro_recebedor_patente: ev.armeiroRecebedorPatente,
-              materiais_devolvidos_resumo: resumoItens,
+              materiais_devolvidos_resumo: resumoItens || 'Conferido',
+              materiais_saldo_pendente_resumo: ev.materiaisSaldoPendenteResumo || 'Nenhum (100% devolvido)',
               itens_devolvidos: ev.itensDevolvidos || [],
               tiros_consumidos: ev.quantidadeTotalTirosConsumidos || 0,
               numero_boletim_ocorrencia: ev.numeroBoletimOcorrencia || null,

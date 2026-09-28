@@ -114,7 +114,8 @@ export default function App() {
         r.status === 'EM SERVIÇO' ||
         r.status === 'MISSÃO' ||
         r.status === 'CAUTELADO' ||
-        r.status === 'SEPARANDO'
+        r.status === 'SEPARANDO' ||
+        r.status === 'DEVOLUÇÃO PARCIAL'
     );
   }, [retiradas]);
 

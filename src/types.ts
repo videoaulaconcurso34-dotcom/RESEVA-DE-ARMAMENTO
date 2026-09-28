@@ -142,6 +142,7 @@ export interface EventoDevolucao {
     estadoDevolucao: EstadoConservacao;
     observacao?: string;
   }>;
+  materiaisSaldoPendenteResumo?: string;
   houveDisparos?: boolean;
   quantidadeTotalTirosConsumidos?: number;
   numeroBoletimOcorrencia?: string;
@@ -171,6 +172,7 @@ export interface Retirada {
   passwordSaidaValidada?: boolean;
   hashAssinaturaSaida?: string;
   dataDevolucao?: string;
+  dataUltimaDevolucaoParcial?: string;
   militarDevolucaoId?: string;
   militarDevolucaoNome?: string;
   militarDevolucaoPatente?: string;

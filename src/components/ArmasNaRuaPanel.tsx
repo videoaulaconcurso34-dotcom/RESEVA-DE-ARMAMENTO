@@ -216,19 +216,20 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
 
   const aplicarPreset = (tipo: 'MISSAO_SERVICO' | 'TODOS_EMPENHADOS' | 'TODOS' | 'LIMPAR') => {
     if (tipo === 'MISSAO_SERVICO') {
-      setStatusSelecionados(['EM SERVIÇO', 'MISSÃO']);
+      setStatusSelecionados(['EM SERVIÇO', 'MISSÃO', 'DEVOLUÇÃO PARCIAL']);
     } else if (tipo === 'TODOS_EMPENHADOS') {
-      setStatusSelecionados(['EM SERVIÇO', 'MISSÃO', 'CAUTELADO']);
+      setStatusSelecionados(['EM SERVIÇO', 'MISSÃO', 'CAUTELADO', 'DEVOLUÇÃO PARCIAL']);
     } else if (tipo === 'TODOS') {
       setStatusSelecionados([
         'EM SERVIÇO',
         'MISSÃO',
         'CAUTELADO',
         'EM ESPERA',
+        'DEVOLUÇÃO PARCIAL',
         'DEVOLVIDO',
       ]);
     } else if (tipo === 'LIMPAR') {
-      setStatusSelecionados(['EM SERVIÇO']);
+      setStatusSelecionados(['EM SERVIÇO', 'DEVOLUÇÃO PARCIAL']);
     }
   };
 

@@ -1244,7 +1244,6 @@ class DatabaseService {
     ret.armeiroRecebedorNome = listaArmeirosRecebedores.join(' / ');
     ret.armeiroRecebedorId = arm?.id || ret.militarReservaId;
     ret.armeiroRecebedorPatente = armeiroPatenteAgora;
-    ret.dataDevolucao = dataDevAgora;
     ret.militarDevolucaoId = mil?.id || ret.militarServicoId;
     ret.militarDevolucaoNome = mil?.nome || ret.militarServicoNome;
     ret.militarDevolucaoPatente = mil?.patente || ret.militarServicoPatente;
@@ -1259,8 +1258,11 @@ class DatabaseService {
 
     if (todosRecolhidos) {
       ret.status = 'DEVOLVIDO';
+      ret.dataDevolucao = dataDevAgora;
     } else {
       ret.status = 'DEVOLUÇÃO PARCIAL';
+      ret.dataUltimaDevolucaoParcial = dataDevAgora;
+      ret.dataDevolucao = undefined;
     }
 
     list[idx] = ret;

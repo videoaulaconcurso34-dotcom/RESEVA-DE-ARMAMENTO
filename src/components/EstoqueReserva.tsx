@@ -89,7 +89,7 @@ export const EstoqueReserva: React.FC<EstoqueReservaProps> = ({
     if (!itemEmEdicao) return 0;
     let totalUso = 0;
     retiradas
-      .filter((r) => r.status === 'MISSÃO' || r.status === 'EM SERVIÇO' || r.status === 'CAUTELADO' || r.status === 'SEPARANDO' || r.status === 'EM ESPERA')
+      .filter((r) => r.status === 'MISSÃO' || r.status === 'EM SERVIÇO' || r.status === 'CAUTELADO' || r.status === 'SEPARANDO' || r.status === 'EM ESPERA' || r.status === 'DEVOLUÇÃO PARCIAL')
       .forEach((r) => {
         const it = r.itens.find((cart) => cart.estoqueId === itemEmEdicao.id);
         if (it) {
