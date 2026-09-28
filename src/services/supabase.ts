@@ -300,6 +300,7 @@ export interface StatusTabelasSupabase {
   estoque: boolean;
   retiradas: boolean;
   auditoria_logs: boolean;
+  devolucoes_eventos?: boolean;
   todasExistem: boolean;
   faltando: string[];
   tabelaMilitaresNome: 'militares_servico' | 'militares';
@@ -317,8 +318,9 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
       estoque: false,
       retiradas: false,
       auditoria_logs: false,
+      devolucoes_eventos: false,
       todasExistem: false,
-      faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs'],
+      faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs', 'devolucoes_eventos'],
       tabelaMilitaresNome: 'militares_servico',
       erroGeral: 'A Chave Anon atual é o placeholder inicial. Cole a chave pública "anon / public" do seu projeto em Project Settings ➔ API no Supabase e clique em SALVAR CREDENCIAIS.',
     };
@@ -340,8 +342,9 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
         estoque: false,
         retiradas: false,
         auditoria_logs: false,
+        devolucoes_eventos: false,
         todasExistem: false,
-        faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs'],
+        faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs', 'devolucoes_eventos'],
         tabelaMilitaresNome: 'militares_servico',
         erroGeral: `Chave Anon / API Key inválida (Erro ${rootCheck.status}). Acesse seu projeto Supabase ➔ Project Settings ➔ API e copie a chave "anon / public".`,
       };
@@ -353,8 +356,9 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
       estoque: false,
       retiradas: false,
       auditoria_logs: false,
+      devolucoes_eventos: false,
       todasExistem: false,
-      faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs'],
+      faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs', 'devolucoes_eventos'],
       tabelaMilitaresNome: 'militares_servico',
       erroGeral: `Não foi possível conectar ao servidor Supabase em ${url}. Verifique se a URL do projeto está correta (ex: https://xyz.supabase.co).`,
     };
@@ -389,6 +393,7 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
   const estoque = await checarTabela('estoque');
   const retiradas = await checarTabela('retiradas');
   const auditoriaLogs = await checarTabela('auditoria_logs');
+  const devolucoesEventos = await checarTabela('devolucoes_eventos');
 
   const faltando: string[] = [];
   if (!militaresExiste) faltando.push('militares_servico');
@@ -396,6 +401,7 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
   if (!estoque) faltando.push('estoque');
   if (!retiradas) faltando.push('retiradas');
   if (!auditoriaLogs) faltando.push('auditoria_logs');
+  if (!devolucoesEventos) faltando.push('devolucoes_eventos');
 
   return {
     militares_servico: militaresExiste,
@@ -403,6 +409,7 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
     estoque,
     retiradas,
     auditoria_logs: auditoriaLogs,
+    devolucoes_eventos: devolucoesEventos,
     todasExistem: faltando.length === 0,
     faltando,
     tabelaMilitaresNome,

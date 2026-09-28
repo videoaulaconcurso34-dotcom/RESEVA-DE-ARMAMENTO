@@ -282,6 +282,11 @@ export const SupabaseIntegration: React.FC<SupabaseIntegrationProps> = ({
       rotulo: 'Auditoria & Logs do Sistema',
       existe: statusTabelas?.auditoria_logs,
     },
+    {
+      nome: 'devolucoes_eventos',
+      rotulo: 'Histórico de Entregas & Devoluções',
+      existe: statusTabelas?.devolucoes_eventos,
+    },
   ];
 
   return (
@@ -560,7 +565,7 @@ export const SupabaseIntegration: React.FC<SupabaseIntegrationProps> = ({
         <div className="flex items-center justify-between">
           <h4 className="font-bold text-white uppercase text-xs flex items-center gap-2">
             <Table className="w-4 h-4 text-[#86efac]" />
-            STATUS DAS 5 TABELAS REQUERIDAS NO SUPABASE
+            STATUS DAS 6 TABELAS REQUERIDAS NO SUPABASE
           </h4>
           <span className="text-[10px] text-[#7a8c7b]">
             Verificação em tempo real via REST API
