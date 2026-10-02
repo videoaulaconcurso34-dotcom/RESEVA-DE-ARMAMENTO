@@ -133,7 +133,7 @@ export const TelaLogin: React.FC<TelaLoginProps> = ({
             }`}
           >
             <Shield className="w-3.5 h-3.5 text-[#7eb864]" />
-            <span>ARMEIRO / OP</span>
+            <span>ARMEIRO</span>
           </button>
 
           <button
@@ -169,24 +169,16 @@ export const TelaLogin: React.FC<TelaLoginProps> = ({
               className="w-full bg-[#090d09] border border-[#232f22] rounded px-3 py-2.5 text-white focus:outline-none focus:border-[#425439]"
             >
               {tipoLogin === 'ARMEIRO'
-                ? armeiros.map((a) => {
-                    const isResp = db.isUsuarioResponsavel(a);
-                    return (
-                      <option key={a.id} value={a.id}>
-                        {isResp ? '★ ' : ''}{a.patente} {a.nomeGuerra} — RE: {a.matricula} ({a.funcao})
-                        {isResp ? ' [RESPONSÁVEL / ADMIN GERAL]' : ''}
-                      </option>
-                    );
-                  })
-                : militares.map((m) => {
-                    const isResp = db.isUsuarioResponsavel(m);
-                    return (
-                      <option key={m.id} value={m.id}>
-                        {isResp ? '★ ' : ''}{m.patente} {m.nomeGuerra} — RE: {m.matricula} • {m.batalhao}
-                        {isResp ? ' [RESPONSÁVEL / ADMIN GERAL]' : ''}
-                      </option>
-                    );
-                  })}
+                ? armeiros.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.patente} {a.nomeGuerra}
+                    </option>
+                  ))
+                : militares.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.patente} {m.nomeGuerra}
+                    </option>
+                  ))}
             </select>
           </div>
 
