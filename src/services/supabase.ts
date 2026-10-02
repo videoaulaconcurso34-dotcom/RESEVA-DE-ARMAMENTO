@@ -1,8 +1,8 @@
 import { MilitarServico, MilitarReserva, ItemEstoque, Retirada, RegistroAuditoria } from '../types';
 
-export const DEFAULT_PROJECT_ID = 'ivkahtrzxmgruqygfxna';
+export const DEFAULT_PROJECT_ID = 'fyorjkyzuwjjuirproyn';
 export const DEFAULT_SUPABASE_URL = `https://${DEFAULT_PROJECT_ID}.supabase.co`;
-export const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2a2FodHJ6eG1ncnVxeWdmeG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAwMDAwMDAsImV4cCI6MjA1NTU1NTU1NX0.placeholder';
+export const DEFAULT_SUPABASE_KEY = 'sb_publishable_POWjIp1y-XyjxcU0FBc2Og_taZrQp4g';
 
 export const SCRIPT_SQL_SUPABASE = `-- ============================================================================
 -- SISRESERVA / SISARM-LOG - DDL COMPLETO PARA O SUPABASE (POSTGRESQL)
@@ -260,24 +260,55 @@ export function normalizarSupabaseKey(rawKey: string): string {
 
 export function isChavePlaceholder(key: string): boolean {
   if (!key) return true;
-  return key.includes('placeholder') || key.length < 25;
+  return key.includes('placeholder') || key.length < 15;
+}
+
+export function getSupabaseHeaders(key: string, extraHeaders?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = {
+    apikey: key,
+    ...extraHeaders,
+  };
+  // Se for token JWT (começa com eyJ), envia no Authorization: Bearer.
+  // Chaves publicáveis modernas (sb_publishable_...) NÃO devem ser enviadas no Bearer para não quebrar decodificação de JWT no PostgREST.
+  if (key && key.startsWith('eyJ')) {
+    headers['Authorization'] = `Bearer ${key}`;
+  }
+  return headers;
+}
+
+// Auto-migração transparente para o projeto ativo
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    const curUrl = localStorage.getItem('supabase_url');
+    const curKey = localStorage.getItem('supabase_anon_key');
+    if (!curUrl || curUrl.includes('ivkahtrzxmgruqygfxna')) {
+      localStorage.setItem('supabase_url', DEFAULT_SUPABASE_URL);
+    }
+    if (!curKey || curKey.includes('placeholder') || curKey.includes('ivkahtrzxmgruqygfxna')) {
+      localStorage.setItem('supabase_anon_key', DEFAULT_SUPABASE_KEY);
+    }
+  } catch {}
 }
 
 export function getSupabaseUrl(): string {
   const salvo = localStorage.getItem('supabase_url');
-  if (salvo && salvo.trim()) return normalizarSupabaseUrl(salvo);
+  if (salvo && salvo.trim() && !salvo.includes('ivkahtrzxmgruqygfxna')) {
+    return normalizarSupabaseUrl(salvo);
+  }
   return DEFAULT_SUPABASE_URL;
 }
 
 export function getSupabaseKey(): string {
   const salvo = localStorage.getItem('supabase_anon_key');
-  if (salvo && salvo.trim()) return normalizarSupabaseKey(salvo);
+  if (salvo && salvo.trim() && !isChavePlaceholder(salvo) && !salvo.includes('placeholder') && !salvo.includes('ivkahtrzxmgruqygfxna')) {
+    return normalizarSupabaseKey(salvo);
+  }
   return DEFAULT_SUPABASE_KEY;
 }
 
 export function hasCustomSupabaseConfig(): boolean {
-  const url = localStorage.getItem('supabase_url');
-  const key = localStorage.getItem('supabase_anon_key');
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
   return Boolean(url && key && !isChavePlaceholder(key));
 }
 
@@ -326,16 +357,13 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
     };
   }
 
-  // Testa conectividade e autenticação básica no endpoint REST do Supabase
+  // Testa conectividade diretamente em uma das tabelas com a chave fornecida
   try {
-    const rootCheck = await fetch(`${url}/rest/v1/`, {
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-      },
+    const testResp = await fetch(`${url}/rest/v1/militares_servico?select=*&limit=1`, {
+      headers: getSupabaseHeaders(key),
     });
 
-    if (rootCheck.status === 401 || rootCheck.status === 403) {
+    if (testResp.status === 401 || testResp.status === 403) {
       return {
         militares_servico: false,
         armeiros: false,
@@ -346,7 +374,7 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
         todasExistem: false,
         faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs', 'devolucoes_eventos'],
         tabelaMilitaresNome: 'militares_servico',
-        erroGeral: `Chave Anon / API Key inválida (Erro ${rootCheck.status}). Acesse seu projeto Supabase ➔ Project Settings ➔ API e copie a chave "anon / public".`,
+        erroGeral: `Chave Anon / API Key inválida (Erro ${testResp.status}). Verifique a chave anon ou publishable do seu projeto Supabase.`,
       };
     }
   } catch (err: any) {
@@ -360,17 +388,14 @@ export async function verificarStatusTabelasSupabase(): Promise<StatusTabelasSup
       todasExistem: false,
       faltando: ['militares_servico', 'armeiros', 'estoque', 'retiradas', 'auditoria_logs', 'devolucoes_eventos'],
       tabelaMilitaresNome: 'militares_servico',
-      erroGeral: `Não foi possível conectar ao servidor Supabase em ${url}. Verifique se a URL do projeto está correta (ex: https://xyz.supabase.co).`,
+      erroGeral: `Não foi possível conectar ao servidor Supabase em ${url}. Verifique a URL do projeto.`,
     };
   }
 
   const checarTabela = async (tabela: string): Promise<boolean> => {
     try {
       const resp = await fetch(`${url}/rest/v1/${tabela}?select=*&limit=1`, {
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-        },
+        headers: getSupabaseHeaders(key),
       });
       return resp.ok;
     } catch {
@@ -437,7 +462,7 @@ export async function testarConexaoSupabase(customConfig?: { url: string; anonKe
     if (status.todasExistem) {
       return {
         sucesso: true,
-        mensagem: 'Conexão estabelecida com sucesso! Todas as 5 tabelas estão prontas e sincronizadas no Supabase.',
+        mensagem: 'Conexão estabelecida com sucesso! Todas as 6 tabelas estão prontas e sincronizadas no Supabase.',
         status,
       };
     } else {
@@ -466,12 +491,10 @@ export async function pushDadosParaSupabase(dados: {
   const url = getSupabaseUrl();
   const key = getSupabaseKey();
 
-  const headers = {
+  const headers = getSupabaseHeaders(key, {
     'Content-Type': 'application/json',
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    Prefer: 'resolution=merge-duplicates',
-  };
+    'Prefer': 'resolution=merge-duplicates',
+  });
 
   const erros: string[] = [];
 
@@ -742,10 +765,7 @@ export async function pullDadosDoSupabase(): Promise<{
   const url = getSupabaseUrl();
   const key = getSupabaseKey();
 
-  const headers = {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-  };
+  const headers = getSupabaseHeaders(key);
 
   try {
     // 1. Militares
