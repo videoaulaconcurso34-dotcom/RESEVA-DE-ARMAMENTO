@@ -1,8 +1,8 @@
 import { MilitarServico, MilitarReserva, ItemEstoque, Retirada, RegistroAuditoria } from '../types';
 
-export const DEFAULT_PROJECT_ID = 'fyorjkyzuwjjuirproyn';
+export const DEFAULT_PROJECT_ID = 'emamwttglxnxdzxgdtzm';
 export const DEFAULT_SUPABASE_URL = `https://${DEFAULT_PROJECT_ID}.supabase.co`;
-export const DEFAULT_SUPABASE_KEY = 'sb_publishable_POWjIp1y-XyjxcU0FBc2Og_taZrQp4g';
+export const DEFAULT_SUPABASE_KEY = 'sb_publishable_nMzkhIOSmgTReuTny-0myw_HG-nHS1E';
 
 export const SCRIPT_SQL_SUPABASE = `-- ============================================================================
 -- SISRESERVA / SISARM-LOG - DDL COMPLETO PARA O SUPABASE (POSTGRESQL)
@@ -281,10 +281,19 @@ if (typeof window !== 'undefined' && window.localStorage) {
   try {
     const curUrl = localStorage.getItem('supabase_url');
     const curKey = localStorage.getItem('supabase_anon_key');
-    if (!curUrl || curUrl.includes('ivkahtrzxmgruqygfxna')) {
+    if (
+      !curUrl ||
+      curUrl.includes('ivkahtrzxmgruqygfxna') ||
+      curUrl.includes('fyorjkyzuwjjuirproyn')
+    ) {
       localStorage.setItem('supabase_url', DEFAULT_SUPABASE_URL);
     }
-    if (!curKey || curKey.includes('placeholder') || curKey.includes('ivkahtrzxmgruqygfxna')) {
+    if (
+      !curKey ||
+      curKey.includes('placeholder') ||
+      curKey.includes('ivkahtrzxmgruqygfxna') ||
+      curKey.includes('POWjIp1y-XyjxcU0FBc2Og_taZrQp4g')
+    ) {
       localStorage.setItem('supabase_anon_key', DEFAULT_SUPABASE_KEY);
     }
   } catch {}
@@ -292,7 +301,12 @@ if (typeof window !== 'undefined' && window.localStorage) {
 
 export function getSupabaseUrl(): string {
   const salvo = localStorage.getItem('supabase_url');
-  if (salvo && salvo.trim() && !salvo.includes('ivkahtrzxmgruqygfxna')) {
+  if (
+    salvo &&
+    salvo.trim() &&
+    !salvo.includes('ivkahtrzxmgruqygfxna') &&
+    !salvo.includes('fyorjkyzuwjjuirproyn')
+  ) {
     return normalizarSupabaseUrl(salvo);
   }
   return DEFAULT_SUPABASE_URL;
@@ -300,7 +314,14 @@ export function getSupabaseUrl(): string {
 
 export function getSupabaseKey(): string {
   const salvo = localStorage.getItem('supabase_anon_key');
-  if (salvo && salvo.trim() && !isChavePlaceholder(salvo) && !salvo.includes('placeholder') && !salvo.includes('ivkahtrzxmgruqygfxna')) {
+  if (
+    salvo &&
+    salvo.trim() &&
+    !isChavePlaceholder(salvo) &&
+    !salvo.includes('placeholder') &&
+    !salvo.includes('ivkahtrzxmgruqygfxna') &&
+    !salvo.includes('POWjIp1y-XyjxcU0FBc2Og_taZrQp4g')
+  ) {
     return normalizarSupabaseKey(salvo);
   }
   return DEFAULT_SUPABASE_KEY;
