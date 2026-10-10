@@ -992,3 +992,16 @@ export async function puxarDadosDoSupabase() {
       : null,
   };
 }
+
+export async function excluirRegistroSupabase(tabela: 'militares_servico' | 'armeiros' | 'estoque', id: string) {
+  try {
+    const url = getSupabaseUrl();
+    const key = getSupabaseKey();
+    if (!url || !key || isChavePlaceholder(key)) return;
+    const headers = getSupabaseHeaders(key);
+    await fetch(`${url}/rest/v1/${tabela}?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers,
+    });
+  } catch {}
+}

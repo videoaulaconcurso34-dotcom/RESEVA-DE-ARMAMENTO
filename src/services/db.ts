@@ -672,6 +672,7 @@ class DatabaseService {
   public excluirArmeiro(id: string) {
     const list = this.getArmeiros().filter((a) => a.id !== id);
     this.save(STORAGE_KEYS.ARMEIROS, list);
+    import('./supabase').then((m) => m.excluirRegistroSupabase('armeiros', id)).catch(() => {});
   }
 
   public validarArmeiro(id: string, senha: string): boolean {
@@ -725,6 +726,7 @@ class DatabaseService {
   public excluirMilitar(id: string) {
     const list = this.getMilitares().filter((m) => m.id !== id);
     this.save(STORAGE_KEYS.MILITARES, list);
+    import('./supabase').then((m) => m.excluirRegistroSupabase('militares_servico', id)).catch(() => {});
   }
 
   public validarSenhaMilitar(id: string, senha: string): boolean {
@@ -1123,7 +1125,7 @@ class DatabaseService {
   public registrarDevolucao(params: {
     retiradaId: string;
     militarDevolucaoId: string;
-    senhaMilitar: string;
+    senhaMilitar?: string;
     armeiroRecebedorId: string;
     senhaArmeiro: string;
     houveDisparos: boolean;

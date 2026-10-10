@@ -71,6 +71,8 @@ export interface MilitarReserva {
   nomeGuerra: string;
   patente: PatenteMilitar;
   funcao:
+    | 'ARMEIRO'
+    | 'DAL'
     | 'Responsável pelo Setor'
     | 'Administrador'
     | 'Armeiro Titular'

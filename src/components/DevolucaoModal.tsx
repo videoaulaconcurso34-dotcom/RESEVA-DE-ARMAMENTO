@@ -247,14 +247,8 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
       return;
     }
 
-    if (!senhaMilitar) {
-      setErroMsg('Digite a senha pessoal do militar.');
-      return;
-    }
-
-    const senhaMilitarOk = db.validarSenhaMilitar(retiradaAtual.militarServicoId, senhaMilitar);
-    if (!senhaMilitarOk) {
-      setErroMsg(`Senha do militar ${retiradaAtual.militarServicoGuerra} incorreta (Padrão: 1234).`);
+    if (!senhaArmeiro.trim()) {
+      setErroMsg('Digite a senha do armeiro recebedor.');
       return;
     }
 
@@ -797,21 +791,8 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                   )}
                 </div>
 
-                {/* Assinaturas Digitais: Militar e Armeiro */}
+                {/* Assinatura Digital: Apenas Armeiro Recebedor */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#1f281e]">
-                  <div>
-                    <label className="text-[11px] text-[#8d9f8e] uppercase font-bold block mb-1">
-                      SENHA DO MILITAR ({retiradaAtual.militarServicoGuerra})
-                    </label>
-                    <input
-                      type="password"
-                      value={senhaMilitar}
-                      onChange={(e) => setSenhaMilitar(e.target.value)}
-                      placeholder="Senha (Padrão: 1234)"
-                      className="w-full bg-[#0c110d] border border-[#232f22] px-3 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#425439]"
-                    />
-                  </div>
-
                   <div>
                     <label className="text-[11px] text-[#8d9f8e] uppercase font-bold block mb-1">
                       ARMEIRO RECEBEDOR DESTA ENTREGA
@@ -819,21 +800,26 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                     <select
                       value={armeiroId}
                       onChange={(e) => setArmeiroId(e.target.value)}
-                      className="w-full bg-[#0c110d] border border-[#232f22] px-2 py-1 text-xs text-white rounded focus:outline-none"
+                      className="w-full bg-[#0c110d] border border-[#232f22] px-3 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#425439]"
                     >
                       {armeiros.map((arm) => (
                         <option key={arm.id} value={arm.id}>
-                          {arm.patente} {arm.nomeGuerra} ({arm.funcao || 'Armeiro'})
+                          {arm.patente} {arm.nomeGuerra} ({arm.funcao || 'ARMEIRO'})
                         </option>
                       ))}
                     </select>
+                  </div>
 
+                  <div>
+                    <label className="text-[11px] text-[#8d9f8e] uppercase font-bold block mb-1">
+                      SENHA DO ARMEIRO RECEBEDOR *
+                    </label>
                     <input
                       type="password"
                       value={senhaArmeiro}
                       onChange={(e) => setSenhaArmeiro(e.target.value)}
-                      placeholder="Senha Armeiro (admin ou 4669)"
-                      className="w-full bg-[#0c110d] border border-[#232f22] px-2 py-1 text-xs text-white rounded mt-1 focus:outline-none"
+                      placeholder="Senha do Armeiro (admin ou 4669)"
+                      className="w-full bg-[#0c110d] border border-[#232f22] px-3 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#425439]"
                     />
                   </div>
                 </div>

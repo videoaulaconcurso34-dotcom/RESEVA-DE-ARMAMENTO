@@ -103,7 +103,7 @@ export const MilitaresGerenciamento: React.FC<MilitaresGerenciamentoProps> = ({
   const [formArmNomeGuerra, setFormArmNomeGuerra] = useState('');
   const [formArmPatente, setFormArmPatente] = useState('3º Sgt PM');
   const [formArmMatricula, setFormArmMatricula] = useState('');
-  const [formArmFuncao, setFormArmFuncao] = useState<any>('Armeiro Auxiliar');
+  const [formArmFuncao, setFormArmFuncao] = useState<'ARMEIRO' | 'DAL'>('ARMEIRO');
   const [formArmSenha, setFormArmSenha] = useState('');
   const [mostrarFormArmSenha, setMostrarFormArmSenha] = useState(false);
 
@@ -287,6 +287,23 @@ export const MilitaresGerenciamento: React.FC<MilitaresGerenciamentoProps> = ({
     onAtualizar();
   };
 
+  const handleExcluirArmeiro = (a: MilitarReserva) => {
+    if (!isAdmin) {
+      setAdminPinInput('');
+      setAdminPinError('');
+      setModalAdminAuthOpen(true);
+      return;
+    }
+    if (confirm(`Deseja realmente apagar/excluir o cadastro do armeiro ${a.patente} ${a.nomeGuerra}?`)) {
+      try {
+        db.excluirArmeiro(a.id);
+        onAtualizar();
+      } catch (e: any) {
+        alert(e.message || 'Erro ao excluir armeiro.');
+      }
+    }
+  };
+
   const filteredMilitares = militares.filter((m) => {
     if (!searchTerm.trim()) return true;
     const q = searchTerm.toLowerCase();
@@ -395,7 +412,7 @@ export const MilitaresGerenciamento: React.FC<MilitaresGerenciamentoProps> = ({
                 setFormArmNomeGuerra('');
                 setFormArmPatente('3º Sgt PM');
                 setFormArmMatricula('');
-                setFormArmFuncao('Armeiro Auxiliar');
+                setFormArmFuncao('ARMEIRO');
                 setFormArmSenha('admin');
                 setModalArmeiroOpen(true);
               }}
@@ -659,7 +676,7 @@ export const MilitaresGerenciamento: React.FC<MilitaresGerenciamentoProps> = ({
                           setFormArmNomeGuerra(a.nomeGuerra);
                           setFormArmPatente(a.patente);
                           setFormArmMatricula(a.matricula);
-                          setFormArmFuncao(a.funcao);
+                          setFormArmFuncao(a.funcao === 'DAL' ? 'DAL' : 'ARMEIRO');
                           setFormArmSenha(a.senhaHash || '');
                           setMostrarFormArmSenha(false);
                           setModalArmeiroOpen(true);
@@ -668,6 +685,13 @@ export const MilitaresGerenciamento: React.FC<MilitaresGerenciamentoProps> = ({
                         title="Editar Armeiro"
                       >
                         <Edit2 className="w-3.5 h-3.5 inline" />
+                      </button>
+                      <button
+                        onClick={() => handleExcluirArmeiro(a)}
+                        className="p-1 text-red-400 hover:text-red-300 cursor-pointer"
+                        title="Apagar / Excluir Cadastro"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 inline" />
                       </button>
                     </td>
                   </tr>
@@ -1023,16 +1047,11 @@ export const MilitaresGerenciamento: React.FC<MilitaresGerenciamentoProps> = ({
                   </label>
                   <select
                     value={formArmFuncao}
-                    onChange={(e) => setFormArmFuncao(e.target.value as any)}
+                    onChange={(e) => setFormArmFuncao(e.target.value as 'ARMEIRO' | 'DAL')}
                     className="w-full bg-[#0c110d] border border-[#232f22] rounded px-2 py-1.5 text-white focus:outline-none"
                   >
-                    <option value="Responsável pelo Setor">Responsável pelo Setor</option>
-                    <option value="Administrador">Administrador</option>
-                    <option value="Armeiro Titular">Armeiro Titular</option>
-                    <option value="Armeiro Adjunto">Armeiro Adjunto</option>
-                    <option value="Armeiro Auxiliar">Armeiro Auxiliar</option>
-                    <option value="Auxiliar de Reserva">Auxiliar de Reserva</option>
-                    <option value="Oficial de Dia">Oficial de Dia</option>
+                    <option value="ARMEIRO">ARMEIRO</option>
+                    <option value="DAL">DAL</option>
                   </select>
                 </div>
               </div>
