@@ -16,10 +16,16 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ title }) => {
   }, []);
 
   useEffect(() => {
+    let safetyTimer: any = null;
     const handleSyncStatus = (e: any) => {
       if (e.detail?.status === 'syncing') {
         setSyncState('syncing');
+        if (safetyTimer) clearTimeout(safetyTimer);
+        safetyTimer = setTimeout(() => {
+          setSyncState('synced');
+        }, 4000);
       } else if (e.detail?.status === 'synced') {
+        if (safetyTimer) clearTimeout(safetyTimer);
         setSyncState('synced');
         if (e.detail?.timestamp) {
           setLastSyncTime(e.detail.timestamp);
@@ -28,7 +34,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ title }) => {
     };
 
     window.addEventListener('sisreserva_sync_realtime_status', handleSyncStatus);
-    return () => window.removeEventListener('sisreserva_sync_realtime_status', handleSyncStatus);
+    return () => {
+      if (safetyTimer) clearTimeout(safetyTimer);
+      window.removeEventListener('sisreserva_sync_realtime_status', handleSyncStatus);
+    };
   }, []);
 
   const formatMilitaryDate = (d: Date) => {
@@ -58,17 +67,18 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ title }) => {
           }`}
           title="Sincronização em tempo real: todas as movimentações são alocadas no banco de dados automaticamente"
         >
-          {syncState === 'syncing' ? (
-            <>
+          <span className="inline-flex items-center justify-center">
+            {syncState === 'syncing' ? (
               <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-              <span>GRAVANDO NA NUVEM...</span>
-            </>
-          ) : (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#86efac] animate-pulse" />
-              <span>NUVEM: TEMPO REAL {lastSyncTime ? `(${lastSyncTime})` : ''}</span>
-            </>
-          )}
+            ) : (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#86efac] animate-pulse inline-block" />
+            )}
+          </span>
+          <span>
+            {syncState === 'syncing'
+              ? 'GRAVANDO NA NUVEM...'
+              : `NUVEM: TEMPO REAL${lastSyncTime ? ` (${lastSyncTime})` : ''}`}
+          </span>
         </span>
       </div>
 

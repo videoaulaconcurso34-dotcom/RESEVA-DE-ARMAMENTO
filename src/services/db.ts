@@ -413,6 +413,7 @@ class DatabaseService {
   private listeners: Array<() => void> = [];
   private autoSyncTimer: any = null;
   private isSyncingRealtime: boolean = false;
+  private hasPendingSync: boolean = false;
 
   constructor() {
     this.initIfEmpty();
@@ -510,8 +511,12 @@ class DatabaseService {
   }
 
   public async sincronizarRealtimeAgora(): Promise<{ supabaseOk: boolean; sheetsOk: boolean }> {
-    if (this.isSyncingRealtime) return { supabaseOk: false, sheetsOk: false };
+    if (this.isSyncingRealtime) {
+      this.hasPendingSync = true;
+      return { supabaseOk: false, sheetsOk: false };
+    }
     this.isSyncingRealtime = true;
+    this.hasPendingSync = false;
 
     try {
       window.dispatchEvent(
@@ -559,6 +564,9 @@ class DatabaseService {
         }
       }
 
+      return { supabaseOk, sheetsOk };
+    } finally {
+      this.isSyncingRealtime = false;
       try {
         window.dispatchEvent(
           new CustomEvent('sisreserva_sync_realtime_status', {
@@ -572,14 +580,15 @@ class DatabaseService {
         );
       } catch {}
 
-      return { supabaseOk, sheetsOk };
-    } finally {
-      this.isSyncingRealtime = false;
+      if (this.hasPendingSync) {
+        this.hasPendingSync = false;
+        this.agendarAutoSyncRealtime();
+      }
     }
   }
 
   // --- Retornar Todos os Materiais ao Estoque & Finalizar Devoluções ---
-  public retornarTodosAoEstoqueEFinalizarDevolucoes(motivo?: string): void {
+  public retornarTodosAoEstoqueEFinalizarDevolucoes(motivo?: string): { retiradasEncerradas: number } {
     // 1. Estoque: todos DISPONÍVEL com quantidade integral
     const estoqueAtual = this.getEstoque();
     const estoqueAtualizado: ItemEstoque[] = estoqueAtual.map((item) => ({
@@ -595,8 +604,10 @@ class DatabaseService {
     const dataDev = new Date().toISOString();
     const hash = `reinicio-sistema-${Date.now()}`;
     const retiradasAtuais = this.getRetiradas();
+    let retiradasEncerradas = 0;
     const retiradasAtualizadas: Retirada[] = retiradasAtuais.map((ret) => {
       if (ret.status !== 'DEVOLVIDO') {
+        retiradasEncerradas++;
         return {
           ...ret,
           status: 'DEVOLVIDO' as StatusRetirada,
@@ -637,6 +648,8 @@ class DatabaseService {
     // Notifica listeners e sincroniza automaticamente em tempo real
     this.notify();
     this.agendarAutoSyncRealtime();
+
+    return { retiradasEncerradas };
   }
 
   // --- Armeiros ---
@@ -928,14 +941,14 @@ class DatabaseService {
         }
       }
     }
-    this.save(STORAGE_KEYS.ESTOQUE, estoque);
+    localStorage.setItem(STORAGE_KEYS.ESTOQUE, JSON.stringify(estoque));
 
     const hash = `sha256-${Date.now().toString(16)}-${ret.numeroCautela}`;
     ret.status = ret.tipoDestino || 'EM SERVIÇO';
     ret.passwordSaidaValidada = true;
     ret.hashAssinaturaSaida = hash;
     list[idx] = ret;
-    this.save(STORAGE_KEYS.RETIRADAS, list);
+    localStorage.setItem(STORAGE_KEYS.RETIRADAS, JSON.stringify(list));
 
     this.registrarAuditoria({
       tipoEvento: 'EXPEDICAO_CAUTELA',
@@ -1008,7 +1021,7 @@ class DatabaseService {
 
     const todas = this.getRetiradas();
     todas.push(pedido);
-    this.save(STORAGE_KEYS.RETIRADAS, todas);
+    localStorage.setItem(STORAGE_KEYS.RETIRADAS, JSON.stringify(todas));
 
     this.registrarAuditoria({
       tipoEvento: 'SOLICITACAO_ESPERA',
@@ -1054,7 +1067,7 @@ class DatabaseService {
         }
       }
     }
-    this.save(STORAGE_KEYS.ESTOQUE, estoque);
+    localStorage.setItem(STORAGE_KEYS.ESTOQUE, JSON.stringify(estoque));
 
     ret.status = ret.tipoDestino || 'EM SERVIÇO';
     ret.militarReservaId = arm.id;
@@ -1063,7 +1076,7 @@ class DatabaseService {
     ret.dataSaida = new Date().toISOString();
     ret.hashAssinaturaSaida = `authorized-${arm.nomeGuerra}-${Date.now()}`;
     retiradas[idx] = ret;
-    this.save(STORAGE_KEYS.RETIRADAS, retiradas);
+    localStorage.setItem(STORAGE_KEYS.RETIRADAS, JSON.stringify(retiradas));
 
     this.registrarAuditoria({
       tipoEvento: 'AUTORIZACAO_ARMEIRO',
@@ -1205,7 +1218,7 @@ class DatabaseService {
       }
     }
 
-    this.save(STORAGE_KEYS.ESTOQUE, estoque);
+    localStorage.setItem(STORAGE_KEYS.ESTOQUE, JSON.stringify(estoque));
 
     const hashDev = `devolucao-${Date.now()}-${ret.numeroCautela}`;
     const dataDevAgora = new Date().toISOString();
@@ -1268,7 +1281,7 @@ class DatabaseService {
     }
 
     list[idx] = ret;
-    this.save(STORAGE_KEYS.RETIRADAS, list);
+    localStorage.setItem(STORAGE_KEYS.RETIRADAS, JSON.stringify(list));
 
     const resumoMateriaisDevolvidos = itensDevolvidosNestaEntrega
       .map((it) => `${it.quantidadeDevolvida}x ${it.materialNome} (${it.nArmamento || 'S/N'})`)

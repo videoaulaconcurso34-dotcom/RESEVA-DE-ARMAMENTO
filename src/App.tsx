@@ -30,6 +30,55 @@ import { GoogleSheetsIntegration } from './components/GoogleSheetsIntegration';
 import { SupabaseIntegration } from './components/SupabaseIntegration';
 import { DocumentacaoTecnicaModal } from './components/DocumentacaoTecnicaModal';
 
+class SafeRenderBoundary extends React.Component<
+  { children: React.ReactNode; resetKey: string },
+  { hasError: boolean; retryCount: number }
+> {
+  constructor(props: { children: React.ReactNode; resetKey: string }) {
+    super(props);
+    this.state = { hasError: false, retryCount: 0 };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  componentDidCatch(error: any) {
+    console.warn('Auto-recuperação de renderização:', error);
+    if (this.state.retryCount < 3) {
+      setTimeout(() => {
+        this.setState((prev) => ({ hasError: false, retryCount: prev.retryCount + 1 }));
+      }, 50);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-[#101610] border border-[#2b3a28] rounded text-center space-y-3 my-4">
+          <p className="text-xs text-[#a7cba3] uppercase font-bold">
+            Sincronizando visualização do painel...
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, retryCount: 0 })}
+            className="px-4 py-1.5 bg-[#243321] text-[#cfdfc7] border border-[#385334] rounded text-xs font-bold uppercase cursor-pointer"
+          >
+            Atualizar Tela Agora
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   // Estado local sincronizado com DatabaseService
   const [militares, setMilitares] = useState<MilitarServico[]>(() => db.getMilitares());
@@ -149,8 +198,27 @@ export default function App() {
     );
   }
 
+  // Verifica se o usuário logado é o Adm Ventura / Responsável pelo Setor
+  const isResponsavelVentura = Boolean(
+    sessaoUsuario.isResponsavelSetor ||
+    sessaoUsuario.isAdmin ||
+    sessaoUsuario.nomeGuerra?.toUpperCase().includes('VENTURA') ||
+    sessaoUsuario.nome?.toUpperCase().includes('VENTURA') ||
+    (armeiroAtivo && (
+      armeiroAtivo.nomeGuerra?.toUpperCase().includes('VENTURA') ||
+      armeiroAtivo.nome?.toUpperCase().includes('VENTURA') ||
+      armeiroAtivo.funcao === 'Responsável pelo Setor'
+    ))
+  );
+
   // Se for Militar de Serviço, a aba ativa é estritamente 'nova-retirada'
-  const tabEfetiva = sessaoUsuario.tipo === 'MILITAR' ? 'nova-retirada' : activeTab;
+  // Se tentar acessar banco de dados (sheets/supabase) sem ser o Adm Ventura, volta para 'armas-na-rua'
+  const tabEfetiva =
+    sessaoUsuario.tipo === 'MILITAR'
+      ? 'nova-retirada'
+      : (activeTab === 'sheets' || activeTab === 'supabase') && !isResponsavelVentura
+      ? 'armas-na-rua'
+      : activeTab;
 
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e2e8e2] font-mono flex flex-col md:flex-row antialiased select-text">
@@ -254,90 +322,91 @@ export default function App() {
           </div>
         )}
 
-        {/* Renderização das Telas */}
-        {tabEfetiva === 'armas-na-rua' && (
-          <ArmasNaRuaPanel
-            retiradasNaRua={retiradasNaRua}
-            todasRetiradas={retiradas}
-            estoque={estoque}
-            armeiroAtivo={armeiroAtivo}
-            onAtualizar={() => db.recarregar()}
-            onOpenDevolucao={handleOpenDevolucao}
-            onOpenNovaCautela={() => setActiveTab('nova-retirada')}
-          />
-        )}
+        <SafeRenderBoundary resetKey={tabEfetiva}>
+          {/* Renderização das Telas */}
+          {tabEfetiva === 'armas-na-rua' && (
+            <ArmasNaRuaPanel
+              retiradasNaRua={retiradasNaRua}
+              todasRetiradas={retiradas}
+              estoque={estoque}
+              armeiroAtivo={armeiroAtivo}
+              onAtualizar={() => db.recarregar()}
+              onOpenDevolucao={handleOpenDevolucao}
+              onOpenNovaCautela={() => setActiveTab('nova-retirada')}
+            />
+          )}
 
-        {tabEfetiva === 'nova-retirada' && (
-          <NovaRetiradaWizard
-            militares={militares}
-            armeiros={armeiros}
-            estoque={estoque}
-            armeiroPadrao={armeiroAtivo}
-            sessaoUsuario={sessaoUsuario}
-            onSucesso={() => {
-              if (sessaoUsuario.tipo === 'MILITAR') {
-                setActiveTab('nova-retirada');
-              } else {
+          {tabEfetiva === 'nova-retirada' && (
+            <NovaRetiradaWizard
+              militares={militares}
+              armeiros={armeiros}
+              estoque={estoque}
+              armeiroPadrao={armeiroAtivo}
+              sessaoUsuario={sessaoUsuario}
+              onSucesso={() => {
+                if (sessaoUsuario.tipo === 'MILITAR') {
+                  setActiveTab('nova-retirada');
+                } else {
+                  setActiveTab('armas-na-rua');
+                }
+              }}
+              onCancelar={() => {
+                if (sessaoUsuario.tipo !== 'MILITAR') {
+                  setActiveTab('armas-na-rua');
+                }
+              }}
+            />
+          )}
+
+          {tabEfetiva === 'devolucao' && (
+            <DevolucaoModal
+              retiradasNaRua={retiradasNaRua}
+              armeiros={armeiros}
+              armeiroPadrao={armeiroAtivo}
+              retiradaPreSelecionadaId={devolucaoPreSelecionadaId}
+              onSucesso={() => {
+                setDevolucaoPreSelecionadaId(null);
                 setActiveTab('armas-na-rua');
-              }
-            }}
-            onCancelar={() => {
-              if (sessaoUsuario.tipo !== 'MILITAR') {
-                setActiveTab('armas-na-rua');
-              }
-            }}
-          />
-        )}
+              }}
+            />
+          )}
 
-        {tabEfetiva === 'devolucao' && (
-          <DevolucaoModal
-            retiradasNaRua={retiradasNaRua}
-            armeiros={armeiros}
-            armeiroPadrao={armeiroAtivo}
-            retiradaPreSelecionadaId={devolucaoPreSelecionadaId}
-            onSucesso={() => {
-              setDevolucaoPreSelecionadaId(null);
-              setActiveTab('armas-na-rua');
-            }}
-            onClose={() => setActiveTab('armas-na-rua')}
-          />
-        )}
+          {tabEfetiva === 'estoque' && (
+            <EstoqueReserva
+              estoque={estoque}
+              retiradas={retiradas}
+              armeiroAtivo={armeiroAtivo}
+              militares={militares}
+              armeiros={armeiros}
+              onAtualizar={() => db.recarregar()}
+            />
+          )}
 
-        {tabEfetiva === 'estoque' && (
-          <EstoqueReserva
-            estoque={estoque}
-            retiradas={retiradas}
-            armeiroAtivo={armeiroAtivo}
-            militares={militares}
-            armeiros={armeiros}
-            onAtualizar={() => db.recarregar()}
-          />
-        )}
+          {tabEfetiva === 'militares' && (
+            <MilitaresGerenciamento
+              militares={militares}
+              armeiros={armeiros}
+              armeiroAtivo={armeiroAtivo}
+              sessaoUsuario={sessaoUsuario}
+              onAtualizar={() => db.recarregar()}
+            />
+          )}
 
-        {tabEfetiva === 'militares' && (
-          <MilitaresGerenciamento
-            militares={militares}
-            armeiros={armeiros}
-            armeiroAtivo={armeiroAtivo}
-            sessaoUsuario={sessaoUsuario}
-            onAtualizar={() => db.recarregar()}
-          />
-        )}
+          {tabEfetiva === 'historico' && (
+            <AuditoriaLogs logs={auditoria} />
+          )}
 
-        {tabEfetiva === 'historico' && (
-          <AuditoriaLogs logs={auditoria} />
-        )}
+          {tabEfetiva === 'sheets' && (
+            <GoogleSheetsIntegration />
+          )}
 
-        {tabEfetiva === 'sheets' && (
-          <GoogleSheetsIntegration />
-        )}
-
-        {tabEfetiva === 'supabase' && (
-          <SupabaseIntegration
-            onSincronizacaoConcluida={() => db.recarregar()}
-            onAbrirDocumentacao={() => setDocTecnicaOpen(true)}
-          />
-        )}
+          {tabEfetiva === 'supabase' && (
+            <SupabaseIntegration
+              onSincronizacaoConcluida={() => db.recarregar()}
+              onAbrirDocumentacao={() => setDocTecnicaOpen(true)}
+            />
+          )}
+        </SafeRenderBoundary>
       </main>
 
       {/* Modais Globais */}

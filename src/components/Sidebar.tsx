@@ -90,6 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-emerald-800 text-emerald-200',
       icon: <span className="font-mono mr-1.5 text-xs">📊</span>,
       apenasArmeiro: true,
+      apenasResponsavel: true,
     },
     {
       id: 'supabase',
@@ -98,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-emerald-700 text-white',
       icon: <span className="font-mono mr-1.5 text-xs">⚡</span>,
       apenasArmeiro: true,
+      apenasResponsavel: true,
     },
   ];
 
@@ -110,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           apenasArmeiro: false,
         },
       ]
-    : todosNavItems;
+    : todosNavItems.filter((item) => !item.apenasResponsavel || isResponsavel);
 
   return (
     <aside className="w-60 sm:w-64 bg-[#0d120e] border-r border-[#1f281e] flex flex-col justify-between h-screen sticky top-0 font-mono select-none flex-shrink-0 z-30">
@@ -187,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {!isMilitar && (
+          {isResponsavel && (
             <div className="pt-2 border-t border-[#1f281e] mt-2">
               <button
                 onClick={onOpenDocTecnica}

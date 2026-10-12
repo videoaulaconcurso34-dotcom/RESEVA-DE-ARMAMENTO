@@ -107,15 +107,14 @@ const STATUS_CONFIG: Array<{
     inactiveBg: 'bg-[#140e06]',
     dotColor: 'bg-amber-400',
   },
-  {
-    id: 'DEVOLVIDO',
-    label: 'DEVOLVIDO',
-    textColor: 'text-[#94a3b8]',
-    borderColor: 'border-[#334155]',
-    activeBg: 'bg-[#17202e]',
-    inactiveBg: 'bg-[#0d121a]',
-    dotColor: 'bg-slate-400',
-  },
+];
+
+const TODOS_STATUS_PAINEL: StatusRetirada[] = [
+  'EM SERVIÇO',
+  'MISSÃO',
+  'CAUTELADO',
+  'EM ESPERA',
+  'DEVOLUÇÃO PARCIAL',
 ];
 
 export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
@@ -127,11 +126,9 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
   onOpenDevolucao,
   onOpenNovaCautela,
 }) => {
-  const [statusSelecionados, setStatusSelecionados] = useState<StatusRetirada[]>([
-    'EM SERVIÇO',
-    'MISSÃO',
-    'DEVOLUÇÃO PARCIAL',
-  ]);
+  const [statusSelecionados, setStatusSelecionados] = useState<StatusRetirada[]>(
+    () => [...TODOS_STATUS_PAINEL]
+  );
 
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODAS');
   const [buscaMaterial, setBuscaMaterial] = useState<string>('');
@@ -142,6 +139,7 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
   const [pedidoAutorizandoId, setPedidoAutorizandoId] = useState<string | null>(null);
   const [erroAutorizacao, setErroAutorizacao] = useState<string | null>(null);
   const [pedidoEmEdicao, setPedidoEmEdicao] = useState<Retirada | null>(null);
+  const [msgSucessoRetorno, setMsgSucessoRetorno] = useState<string | null>(null);
 
   const agora = Date.now();
 
@@ -171,13 +169,6 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
         armeiroId: armeiroAtivo.id,
         senhaArmeiro: senhaArmeiroModal.trim(),
       });
-      dispararAutoSyncSupabase(() => ({
-        militares: db.getMilitares(),
-        armeiros: db.getArmeiros(),
-        estoque: db.getEstoque(),
-        retiradas: db.getRetiradas(),
-        auditoria: db.getAuditoria(),
-      }));
       setPedidoAutorizandoId(null);
       setSenhaArmeiroModal('');
       if (onAtualizar) onAtualizar();
@@ -187,19 +178,28 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
   };
 
   const handleRecusarPedido = (pedidoId: string) => {
-    if (!window.confirm('Deseja realmente recusar e cancelar esta solicitação em espera?')) return;
     try {
       db.recusarPedidoEmEspera(pedidoId, 'Cancelado pelo Armeiro de Plantão');
-      dispararAutoSyncSupabase(() => ({
-        militares: db.getMilitares(),
-        armeiros: db.getArmeiros(),
-        estoque: db.getEstoque(),
-        retiradas: db.getRetiradas(),
-        auditoria: db.getAuditoria(),
-      }));
       if (onAtualizar) onAtualizar();
     } catch (err: any) {
-      alert(err.message || 'Erro ao recusar pedido.');
+      setErroAutorizacao(err.message || 'Erro ao recusar pedido.');
+    }
+  };
+
+  const handleRetornarTudoAoEstoque = () => {
+    try {
+      const res = db.retornarTodosAoEstoqueEFinalizarDevolucoes(
+        'Início operacional do sistema: 100% dos materiais retornados ao armorial'
+      );
+      if (onAtualizar) onAtualizar();
+      setMsgSucessoRetorno(
+        res.retiradasEncerradas > 0
+          ? `✓ ${res.retiradasEncerradas} cautela(s) encerrada(s) e 100% dos materiais retornados ao estoque!`
+          : '✓ Todos os materiais do armorial já se encontram 100% disponíveis no estoque!'
+      );
+      setTimeout(() => setMsgSucessoRetorno(null), 5000);
+    } catch (err: any) {
+      console.error('Erro ao retornar tudo ao estoque:', err);
     }
   };
 
@@ -217,17 +217,8 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
   const aplicarPreset = (tipo: 'MISSAO_SERVICO' | 'TODOS_EMPENHADOS' | 'TODOS' | 'LIMPAR') => {
     if (tipo === 'MISSAO_SERVICO') {
       setStatusSelecionados(['EM SERVIÇO', 'MISSÃO', 'DEVOLUÇÃO PARCIAL']);
-    } else if (tipo === 'TODOS_EMPENHADOS') {
-      setStatusSelecionados(['EM SERVIÇO', 'MISSÃO', 'CAUTELADO', 'DEVOLUÇÃO PARCIAL']);
-    } else if (tipo === 'TODOS') {
-      setStatusSelecionados([
-        'EM SERVIÇO',
-        'MISSÃO',
-        'CAUTELADO',
-        'EM ESPERA',
-        'DEVOLUÇÃO PARCIAL',
-        'DEVOLVIDO',
-      ]);
+    } else if (tipo === 'TODOS_EMPENHADOS' || tipo === 'TODOS') {
+      setStatusSelecionados([...TODOS_STATUS_PAINEL]);
     } else if (tipo === 'LIMPAR') {
       setStatusSelecionados(['EM SERVIÇO', 'DEVOLUÇÃO PARCIAL']);
     }
@@ -348,16 +339,16 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
       const q = searchTermFichas.toLowerCase();
       lista = lista.filter((r) => {
         const matchMilitar =
-          r.militarServicoNome.toLowerCase().includes(q) ||
-          r.militarServicoGuerra.toLowerCase().includes(q) ||
-          r.militarServicoMatricula.toLowerCase().includes(q) ||
-          r.numeroCautela.toLowerCase().includes(q) ||
-          r.motivoDetalhado.toLowerCase().includes(q);
+          (r.militarServicoNome || '').toLowerCase().includes(q) ||
+          (r.militarServicoGuerra || '').toLowerCase().includes(q) ||
+          (r.militarServicoMatricula || '').toLowerCase().includes(q) ||
+          (r.numeroCautela || '').toLowerCase().includes(q) ||
+          (r.motivoDetalhado || '').toLowerCase().includes(q);
 
-        const matchItem = r.itens.some(
+        const matchItem = (r.itens || []).some(
           (i) =>
-            i.materialNome.toLowerCase().includes(q) ||
-            i.nArmamento.toLowerCase().includes(q) ||
+            (i.materialNome || '').toLowerCase().includes(q) ||
+            (i.nArmamento || '').toLowerCase().includes(q) ||
             (i.calibre && i.calibre.toLowerCase().includes(q))
         );
 
@@ -404,65 +395,30 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-            <span className="text-[#6d7e6c] uppercase font-bold mr-1">Atalhos:</span>
             <button
               type="button"
-              onClick={() => aplicarPreset('MISSAO_SERVICO')}
-              className={`px-2 py-1 border rounded transition-all font-bold uppercase cursor-pointer ${
-                statusSelecionados.length === 2 &&
-                statusSelecionados.includes('MISSÃO') &&
-                statusSelecionados.includes('EM SERVIÇO')
-                  ? 'bg-[#293623] border-[#567a4c] text-white shadow-sm'
-                  : 'bg-[#141b14] border-[#253323] text-[#93a791] hover:bg-[#1d261d]'
-              }`}
-            >
-              Missão + Em Serviço
-            </button>
-
-            <button
-              type="button"
-              onClick={() => aplicarPreset('TODOS_EMPENHADOS')}
-              className="px-2 py-1 bg-[#141b14] hover:bg-[#1d261d] border border-[#253323] text-[#93a791] rounded font-bold uppercase transition-all cursor-pointer"
-            >
-              Todos Empenhados
-            </button>
-
-            <button
-              type="button"
-              onClick={() => aplicarPreset('TODOS')}
-              className="px-2 py-1 bg-[#141b14] hover:bg-[#1d261d] border border-[#253323] text-[#93a791] rounded font-bold uppercase transition-all cursor-pointer"
-            >
-              Selecionar Todos
-            </button>
-
-            <button
-              type="button"
-              onClick={() => aplicarPreset('LIMPAR')}
-              className="px-2 py-1 bg-[#181515] hover:bg-[#251d1d] border border-[#3d2727] text-[#c78888] rounded font-bold uppercase transition-all cursor-pointer"
-            >
-              Limpar
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Confirmar retorno de TODOS os materiais empenhados para o armorial? Todas as cautelas serão finalizadas como DEVOLVIDO e o armorial ficará 100% disponível para iniciar o sistema.'
-                  )
-                ) {
-                  db.retornarTodosAoEstoqueEFinalizarDevolucoes('Início operacional do sistema: 100% dos materiais no armorial');
-                  if (onAtualizar) onAtualizar();
-                }
-              }}
-              className="px-2.5 py-1 bg-[#1c2c1a] hover:bg-[#273e25] border border-[#3e683b] text-[#86efac] rounded font-bold uppercase transition-all cursor-pointer flex items-center gap-1 shadow-sm ml-auto"
+              onClick={handleRetornarTudoAoEstoque}
+              className="px-3 py-1.5 bg-[#1c2c1a] hover:bg-[#273e25] active:scale-[0.99] border border-[#3e683b] text-[#86efac] rounded font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm ml-auto"
               title="Recolhe todas as armas e materiais para o estoque e finaliza as saídas pendentes"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>RETORNAR TUDO AO ESTOQUE (INICIAR SISTEMA)</span>
             </button>
           </div>
         </div>
+
+        {msgSucessoRetorno && (
+          <div className="p-2.5 bg-[#132615] border border-[#386b3c] text-[#86efac] text-xs font-bold rounded flex items-center justify-between">
+            <span>{msgSucessoRetorno}</span>
+            <button
+              type="button"
+              onClick={() => setMsgSucessoRetorno(null)}
+              className="text-[10px] text-[#a7cba3] hover:text-white uppercase ml-3 cursor-pointer"
+            >
+              FECHAR
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {STATUS_CONFIG.map((conf) => {
@@ -880,11 +836,13 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
 
                     <div className="space-y-1.5 my-1">
                       {ret.itens.map((it) => {
-                        const isRecolhido = (it.quantidadeDevolvida ?? 0) >= it.quantidade;
-                        const pendente =
+                        const pendente = Math.max(
+                          0,
                           it.quantidade -
-                          (it.quantidadeDevolvida ?? 0) -
-                          (it.quantidadeConsumida ?? 0);
+                            (it.quantidadeDevolvida ?? 0) -
+                            (it.quantidadeConsumida ?? 0)
+                        );
+                        const isRecolhido = pendente <= 0 && ret.status !== 'EM ESPERA' && ret.status !== 'SEPARANDO';
 
                         return (
                           <div
@@ -926,7 +884,7 @@ export const ArmasNaRuaPanel: React.FC<ArmasNaRuaPanelProps> = ({
                       <div>
                         Saída {formatDataHoraMilitar(ret.dataSaida)} • Armeiro:{' '}
                         <span className="text-[#a1b59f] font-semibold">
-                          {ret.militarReservaNome.split(' ')[0]}
+                          {(ret.militarReservaNome || 'ARMEIRO').split(' ')[0]}
                         </span>
                       </div>
                       <div className="text-[#e5a93c] font-bold">

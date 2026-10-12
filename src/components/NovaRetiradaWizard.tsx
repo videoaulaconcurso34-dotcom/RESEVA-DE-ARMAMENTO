@@ -179,14 +179,6 @@ export const NovaRetiradaWizard: React.FC<NovaRetiradaWizardProps> = ({
         senhaMilitar: senhaMilitar,
       });
 
-      dispararAutoSyncSupabase(() => ({
-        militares: db.getMilitares(),
-        armeiros: db.getArmeiros(),
-        estoque: db.getEstoque(),
-        retiradas: db.getRetiradas(),
-        auditoria: db.getAuditoria(),
-      }));
-
       onSucesso(retConfirmada);
     } catch (err: any) {
       setErroAuth(err.message || 'Erro ao processar cautela.');
@@ -224,14 +216,6 @@ export const NovaRetiradaWizard: React.FC<NovaRetiradaWizardProps> = ({
         })),
         senhaMilitar: senhaMilitar,
       });
-
-      dispararAutoSyncSupabase(() => ({
-        militares: db.getMilitares(),
-        armeiros: db.getArmeiros(),
-        estoque: db.getEstoque(),
-        retiradas: db.getRetiradas(),
-        auditoria: db.getAuditoria(),
-      }));
 
       setPedidoEmEsperaCriado(pedido);
       onSucesso(pedido);

@@ -643,18 +643,23 @@ export async function pushDadosParaSupabase(dados: {
           militar_reserva_patente: r.militarReservaPatente || '',
           hash_assinatura_saida: r.hashAssinaturaSaida || r.hashAutenticacao || '',
           hash_autenticacao: r.hashAutenticacao || r.hashAssinaturaSaida || '',
-          itens: (r.itens || []).map((it) => ({
-            ...it,
-            quantidadeDevolvida: it.quantidadeDevolvida || 0,
-            quantidadeConsumida: it.quantidadeConsumida || 0,
-            quantidadePendente: Math.max(0, it.quantidade - (it.quantidadeDevolvida || 0) - (it.quantidadeConsumida || 0)),
-            statusItem:
-              (it.quantidadeDevolvida || 0) >= it.quantidade
-                ? 'DEVOLVIDO'
-                : (it.quantidadeConsumida || 0) >= it.quantidade
-                ? 'CONSUMIDO'
-                : 'PENDENTE / NA RUA',
-          })),
+          itens: (r.itens || []).map((it) => {
+            const dev = it.quantidadeDevolvida || 0;
+            const cons = it.quantidadeConsumida || 0;
+            const pend = Math.max(0, it.quantidade - dev - cons);
+            return {
+              ...it,
+              quantidadeDevolvida: dev,
+              quantidadeConsumida: cons,
+              quantidadePendente: pend,
+              statusItem:
+                pend <= 0
+                  ? cons > 0 && dev === 0
+                    ? 'CONSUMIDO'
+                    : 'DEVOLVIDO'
+                  : 'PENDENTE / NA RUA',
+            };
+          }),
           materiais_saida_resumo: saidaOriginal.join(' | '),
           materiais_devolvidos_resumo: devolvidos.length > 0 ? devolvidos.join(' | ') : 'Nenhum material devolvido ainda',
           materiais_pendentes_resumo: pendentes.length > 0 ? pendentes.join(' | ') : 'Nenhum material pendente (100% devolvido)',

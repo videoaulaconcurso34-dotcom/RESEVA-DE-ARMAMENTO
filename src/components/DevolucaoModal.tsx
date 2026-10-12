@@ -57,7 +57,14 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
     return retiradasNaRua.find((r) => r.id === selectedRetiradaId) || retiradasNaRua[0] || null;
   }, [retiradasNaRua, selectedRetiradaId]);
 
-  // Sincroniza estado ao selecionar uma cautela
+  const itensSignature = useMemo(() => {
+    if (!retiradaAtual) return '';
+    return `${retiradaAtual.id}|${retiradaAtual.status}|${retiradaAtual.itens
+      .map((i) => `${i.id}:${i.quantidadeDevolvida || 0}:${i.quantidadeConsumida || 0}`)
+      .join(',')}`;
+  }, [retiradaAtual]);
+
+  // Sincroniza estado ao selecionar uma cautela ou após devolução parcial
   useEffect(() => {
     if (retiradaAtual) {
       const mapaCheck: Record<string, boolean> = {};
@@ -65,10 +72,10 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
       const mapaDisparos: Record<string, number> = {};
 
       retiradaAtual.itens.forEach((it) => {
-        const jaDevolvido = (it.quantidadeDevolvida ?? 0) >= it.quantidade;
         const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
-        mapaCheck[it.id] = !jaDevolvido && pendente > 0;
-        mapaQtd[it.id] = pendente;
+        const jaDevolvido = pendente <= 0;
+        mapaCheck[it.id] = !jaDevolvido;
+        mapaQtd[it.id] = jaDevolvido ? 0 : pendente;
         mapaDisparos[it.id] = 0;
       });
 
@@ -80,14 +87,13 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
       setSenhaMilitar('');
       setSenhaArmeiro('');
       setErroMsg(null);
-      // Se a cautela já está em DEVOLUÇÃO PARCIAL, abre direto em modo parcial para facilitar
       if (retiradaAtual.status === 'DEVOLUÇÃO PARCIAL') {
         setModoDevolucao('PARCIAL');
       } else {
         setModoDevolucao('TOTAL');
       }
     }
-  }, [retiradaAtual?.id]);
+  }, [itensSignature]);
 
   const aplicarModoTotal = () => {
     if (!retiradaAtual) return;
@@ -95,10 +101,10 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
     const mapaCheck: Record<string, boolean> = {};
     const mapaQtd: Record<string, number> = {};
     retiradaAtual.itens.forEach((it) => {
-      const jaDevolvido = (it.quantidadeDevolvida ?? 0) >= it.quantidade;
       const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
-      mapaCheck[it.id] = !jaDevolvido && pendente > 0;
-      mapaQtd[it.id] = pendente;
+      const jaDevolvido = pendente <= 0;
+      mapaCheck[it.id] = !jaDevolvido;
+      mapaQtd[it.id] = jaDevolvido ? 0 : pendente;
     });
     setItensDevolvidos(mapaCheck);
     setQuantidadesDevolvidas(mapaQtd);
@@ -107,78 +113,101 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
 
   const aplicarModoParcial = () => {
     setModoDevolucao('PARCIAL');
-  };
-
-  const marcarTodosItens = () => {
     if (!retiradaAtual) return;
-    const mapaCheck: Record<string, boolean> = {};
-    const mapaQtd: Record<string, number> = {};
-    retiradaAtual.itens.forEach((it) => {
-      const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
-      if (pendente > 0) {
-        mapaCheck[it.id] = true;
-        mapaQtd[it.id] = pendente;
-      }
-    });
-    setItensDevolvidos(mapaCheck);
-    setQuantidadesDevolvidas(mapaQtd);
-  };
-
-  const desmarcarTodosItens = () => {
-    if (!retiradaAtual) return;
-    const mapaCheck: Record<string, boolean> = {};
-    const mapaQtd: Record<string, number> = {};
-    retiradaAtual.itens.forEach((it) => {
-      mapaCheck[it.id] = false;
-      mapaQtd[it.id] = 0;
-    });
-    setItensDevolvidos(mapaCheck);
-    setQuantidadesDevolvidas(mapaQtd);
+    const pendentes = retiradaAtual.itens.filter(
+      (it) => Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0)) > 0
+    );
+    if (pendentes.length > 1) {
+      const primeiroId = pendentes[0].id;
+      const mapaCheck: Record<string, boolean> = {};
+      const mapaQtd: Record<string, number> = {};
+      retiradaAtual.itens.forEach((it) => {
+        const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
+        const marcar = pendente > 0 && it.id === primeiroId;
+        mapaCheck[it.id] = marcar;
+        mapaQtd[it.id] = marcar ? pendente : 0;
+      });
+      setItensDevolvidos(mapaCheck);
+      setQuantidadesDevolvidas(mapaQtd);
+    }
   };
 
   const toggleItem = (id: string) => {
+    const itemOriginal = retiradaAtual?.itens.find((i) => i.id === id);
+    const pendente = itemOriginal
+      ? Math.max(0, itemOriginal.quantidade - (itemOriginal.quantidadeDevolvida ?? 0) - (itemOriginal.quantidadeConsumida ?? 0))
+      : 0;
+    if (pendente <= 0) return;
+
+    const disp = houveDisparos && itemOriginal?.categoria === 'MUNIÇÃO' ? (disparosPorItem[id] || 0) : 0;
+    const maxEstoque = Math.max(0, pendente - disp);
+    if (maxEstoque <= 0) return;
+
+    setModoDevolucao('PARCIAL');
     setItensDevolvidos((prev) => {
       const novoChecked = !prev[id];
-      const itemOriginal = retiradaAtual?.itens.find((i) => i.id === id);
-      const pendente = itemOriginal
-        ? Math.max(0, itemOriginal.quantidade - (itemOriginal.quantidadeDevolvida ?? 0) - (itemOriginal.quantidadeConsumida ?? 0))
-        : 1;
-
       setQuantidadesDevolvidas((qPrev) => ({
         ...qPrev,
-        [id]: novoChecked ? pendente : 0,
+        [id]: novoChecked ? maxEstoque : 0,
       }));
-
       return { ...prev, [id]: novoChecked };
     });
   };
 
   const handleQtdChange = (id: string, novaQtd: number, maxQtd: number) => {
-    const qtdValida = Math.max(0, Math.min(novaQtd, maxQtd));
+    const disp = houveDisparos ? (disparosPorItem[id] || 0) : 0;
+    const limiteEstoque = Math.max(0, maxQtd - disp);
+    const qtdValida = Math.max(0, Math.min(novaQtd, limiteEstoque));
+    if (qtdValida < maxQtd) {
+      setModoDevolucao('PARCIAL');
+    }
     setQuantidadesDevolvidas((prev) => ({ ...prev, [id]: qtdValida }));
     setItensDevolvidos((prev) => ({ ...prev, [id]: qtdValida > 0 }));
   };
 
-  const handleDisparosQtdChange = (id: string, qtd: number, maxDisp: number) => {
-    const qtdValida = Math.max(0, Math.min(qtd, maxDisp));
+  const handleDisparosQtdChange = (id: string, qtd: number, maxPendente: number) => {
+    const qtdValida = Math.max(0, Math.min(qtd, maxPendente));
     setDisparosPorItem((prev) => ({ ...prev, [id]: qtdValida }));
+    const restanteEstoque = Math.max(0, maxPendente - qtdValida);
+    setQuantidadesDevolvidas((prev) => ({
+      ...prev,
+      [id]: Math.min(prev[id] ?? restanteEstoque, restanteEstoque),
+    }));
+    if (restanteEstoque === 0) {
+      setItensDevolvidos((prev) => ({ ...prev, [id]: false }));
+    }
   };
+
+  // Munições elegíveis para registro de disparo em serviço:
+  // Somente munições que ainda NÃO foram devolvidas ao estoque (pendente > 0)
+  // e que na devolução parcial não estão marcadas como 100% devolvidas ao estoque
+  const municoesDisponiveisParaDisparo = useMemo(() => {
+    if (!retiradaAtual) return [];
+    return retiradaAtual.itens.filter((it) => {
+      if (it.categoria !== 'MUNIÇÃO') return false;
+      const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
+      if (pendente <= 0) return false;
+      const marcadaDevolver = Boolean(itensDevolvidos[it.id]);
+      const qtdDevolvendo = marcadaDevolver ? (quantidadesDevolvidas[it.id] ?? pendente) : 0;
+      const temDisparo = (disparosPorItem[it.id] || 0) > 0;
+      if (modoDevolucao === 'PARCIAL' && marcadaDevolver && qtdDevolvendo >= pendente && !temDisparo) {
+        return false;
+      }
+      return true;
+    });
+  }, [retiradaAtual, itensDevolvidos, quantidadesDevolvidas, modoDevolucao, disparosPorItem]);
 
   // Cálculo de munições disparadas pelo militar
   const totalTirosDeflagrados = useMemo(() => {
     if (!houveDisparos || !retiradaAtual) return 0;
     let total = 0;
-    retiradaAtual.itens.forEach((it) => {
-      if (it.categoria === 'MUNIÇÃO') {
-        const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
-        const devAgora = itensDevolvidos[it.id] ? (quantidadesDevolvidas[it.id] ?? 0) : 0;
-        const maxConsumo = Math.max(0, pendente - devAgora);
-        const consumoInformado = disparosPorItem[it.id] || 0;
-        total += Math.min(maxConsumo, consumoInformado);
-      }
+    municoesDisponiveisParaDisparo.forEach((it) => {
+      const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
+      const consumoInformado = disparosPorItem[it.id] || 0;
+      total += Math.min(pendente, Math.max(0, consumoInformado));
     });
     return total;
-  }, [houveDisparos, retiradaAtual, itensDevolvidos, quantidadesDevolvidas, disparosPorItem]);
+  }, [houveDisparos, retiradaAtual, municoesDisponiveisParaDisparo, disparosPorItem]);
 
   // Contagem de itens que serão devolvidos nesta etapa
   const resumoItensDevolvendoAgora = useMemo(() => {
@@ -260,10 +289,10 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
 
     // Monta itens da conferência estritamente com base no que foi marcado para devolução
     const itensConferencia = retiradaAtual.itens.map((it) => {
-      const jaDevolvido = (it.quantidadeDevolvida ?? 0) >= it.quantidade;
       const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
+      const jaDevolvido = pendente <= 0;
 
-      if (jaDevolvido || pendente <= 0) {
+      if (jaDevolvido) {
         return {
           carrinhoId: it.id,
           quantidadeDevolvida: 0,
@@ -273,21 +302,23 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
         };
       }
 
-      const foiMarcadoDevolver = Boolean(itensDevolvidos[it.id]);
+      const podeTerDisparo =
+        houveDisparos &&
+        it.categoria === 'MUNIÇÃO' &&
+        municoesDisponiveisParaDisparo.some((m) => m.id === it.id);
+      const qtdConsumida = podeTerDisparo
+        ? Math.min(pendente, Math.max(0, disparosPorItem[it.id] || 0))
+        : 0;
+
+      const maxEstoque = Math.max(0, pendente - qtdConsumida);
+      const foiMarcadoDevolver = Boolean(itensDevolvidos[it.id]) && maxEstoque > 0;
       let qtdDevolvida = 0;
       if (foiMarcadoDevolver) {
         if (it.quantidade > 1 || it.categoria === 'MUNIÇÃO') {
-          qtdDevolvida = Math.min(pendente, Math.max(1, quantidadesDevolvidas[it.id] ?? pendente));
+          qtdDevolvida = Math.min(maxEstoque, Math.max(0, quantidadesDevolvidas[it.id] ?? maxEstoque));
         } else {
           qtdDevolvida = 1;
         }
-      }
-
-      let qtdConsumida = 0;
-      if (houveDisparos && it.categoria === 'MUNIÇÃO') {
-        const saldoAposDev = Math.max(0, pendente - qtdDevolvida);
-        const consumoDesejado = disparosPorItem[it.id] || 0;
-        qtdConsumida = Math.min(saldoAposDev, Math.max(0, consumoDesejado));
       }
 
       return {
@@ -328,14 +359,6 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
         observacoesGerais: observacoes.trim() || undefined,
         itensConferencia,
       });
-
-      dispararAutoSyncSupabase(() => ({
-        militares: db.getMilitares(),
-        armeiros: db.getArmeiros(),
-        estoque: db.getEstoque(),
-        retiradas: db.getRetiradas(),
-        auditoria: db.getAuditoria(),
-      }));
 
       onSucesso();
       if (onClose) onClose();
@@ -499,66 +522,14 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                   </div>
                 )}
 
-                {/* Seletores de Modo: Total vs Parcial */}
-                <div className="space-y-2">
-                  <div className="text-[11px] font-bold text-[#8d9f8e] uppercase flex items-center justify-between">
-                    <span>TIPO DE DEVOLUÇÃO A REALIZAR:</span>
-                    <span className="text-[10px] text-[#7a8c7b]">Escolha o modo desejado:</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={aplicarModoTotal}
-                      className={`p-2.5 rounded text-xs font-bold uppercase flex items-center justify-center gap-2 border transition-all cursor-pointer ${
-                        modoDevolucao === 'TOTAL'
-                          ? 'bg-[#1b3319] border-[#4a7244] text-white shadow-sm ring-1 ring-[#7eb864]'
-                          : 'bg-[#0c110d] border-[#232f22] text-[#7a8c7b] hover:border-[#384937] hover:text-[#d1ddd1]'
-                      }`}
-                    >
-                      <PackageCheck className="w-4 h-4 text-[#7eb864]" />
-                      <span>DEVOLUÇÃO TOTAL (100%)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={aplicarModoParcial}
-                      className={`p-2.5 rounded text-xs font-bold uppercase flex items-center justify-center gap-2 border transition-all cursor-pointer ${
-                        modoDevolucao === 'PARCIAL'
-                          ? 'bg-[#291b0c] border-[#854d0e] text-[#fcd34d] shadow-sm ring-1 ring-[#f59e0b]'
-                          : 'bg-[#0c110d] border-[#232f22] text-[#7a8c7b] hover:border-[#4d3a24] hover:text-[#fcd34d]'
-                      }`}
-                    >
-                      <RotateCcw className="w-4 h-4 text-amber-400" />
-                      <span>DEVOLUÇÃO PARCIAL (SELEÇÃO)</span>
-                    </button>
-                  </div>
-
-                  {modoDevolucao === 'PARCIAL' && (
-                    <div className="p-2.5 bg-[#1f160b] border border-[#694819] rounded text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-amber-300 text-[11px]">
-                        <Info className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                        <span>Marque apenas os itens que estão sendo entregues agora. Os outros continuarão acautelados.</span>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={marcarTodosItens}
-                          className="px-2 py-0.5 bg-[#2c1d0d] hover:bg-[#3d2a13] text-amber-300 border border-[#5a3c18] rounded text-[10px] font-bold uppercase cursor-pointer"
-                        >
-                          Marcar Todos
-                        </button>
-                        <button
-                          type="button"
-                          onClick={desmarcarTodosItens}
-                          className="px-2 py-0.5 bg-[#2c1d0d] hover:bg-[#3d2a13] text-amber-300 border border-[#5a3c18] rounded text-[10px] font-bold uppercase cursor-pointer"
-                        >
-                          Desmarcar Todos
-                        </button>
-                      </div>
+                {modoDevolucao === 'PARCIAL' && (
+                  <div className="p-2.5 bg-[#1f160b] border border-[#694819] rounded text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-amber-300 text-[11px]">
+                      <Info className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span>Marque apenas os itens que estão sendo entregues agora. Os outros continuarão acautelados.</span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Lista de Materiais da Cautela */}
                 <div className="bg-[#0c110d] border border-[#232f22] p-3 rounded-sm space-y-2.5">
@@ -595,12 +566,15 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                       );
                     }
 
-                    const isChecked = Boolean(itensDevolvidos[item.id]);
+                    const dispLancado =
+                      houveDisparos && item.categoria === 'MUNIÇÃO' ? (disparosPorItem[item.id] || 0) : 0;
+                    const maxEstoqueItem = Math.max(0, pendente - dispLancado);
+                    const isChecked = Boolean(itensDevolvidos[item.id]) && maxEstoqueItem > 0;
                     const isMultiplo = item.quantidade > 1 || item.categoria === 'MUNIÇÃO';
                     const qtdDev = isChecked
-                      ? (isMultiplo ? Math.min(pendente, Math.max(1, quantidadesDevolvidas[item.id] ?? pendente)) : 1)
+                      ? (isMultiplo ? Math.min(maxEstoqueItem, Math.max(1, quantidadesDevolvidas[item.id] ?? maxEstoqueItem)) : 1)
                       : 0;
-                    const saldoFicaNaRua = Math.max(0, pendente - qtdDev);
+                    const saldoFicaNaRua = Math.max(0, pendente - qtdDev - dispLancado);
 
                     return (
                       <div
@@ -636,22 +610,26 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                         {/* Controles de Quantidade */}
                         {isMultiplo ? (
                           <div className="flex items-center gap-2 pl-7 sm:pl-0 flex-shrink-0">
-                            {isChecked ? (
+                            {maxEstoqueItem <= 0 && dispLancado > 0 ? (
+                              <span className="text-[10px] font-bold text-[#e5a93c] bg-[#241a0d] border border-[#523916] px-2 py-0.5 rounded">
+                                ● 100% Disparada em Serviço ({dispLancado} un)
+                              </span>
+                            ) : isChecked ? (
                               <div className="flex items-center bg-[#0a0f0b] border border-[#232f22] rounded px-2 py-1">
                                 <span className="text-[10px] text-[#7a8c7b] uppercase mr-1.5">Devolver:</span>
                                 <input
                                   type="number"
                                   min={1}
-                                  max={pendente}
+                                  max={maxEstoqueItem}
                                   value={qtdDev}
                                   onChange={(e) => handleQtdChange(item.id, parseInt(e.target.value, 10) || 0, pendente)}
                                   className="w-14 bg-[#141c14] border border-[#344433] px-1.5 py-0.5 text-center text-xs font-bold text-white rounded focus:outline-none focus:border-[#7eb864]"
                                 />
-                                <span className="text-[10px] text-[#7a8c7b] ml-1">/ {pendente} un</span>
+                                <span className="text-[10px] text-[#7a8c7b] ml-1">/ {maxEstoqueItem} un</span>
                               </div>
                             ) : (
                               <span className="text-[10px] font-bold text-amber-400 bg-[#241a0d] border border-[#523916] px-2 py-0.5 rounded">
-                                ● Permanece na rua ({pendente} un)
+                                ● Permanece na rua ({saldoFicaNaRua} un)
                               </span>
                             )}
 
@@ -713,33 +691,30 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                   )}
                 </div>
 
-                {/* Opção Específica para Disparos / Consumo de Munições */}
-                <div className="p-3 bg-[#111612] border border-[#223324] rounded text-xs space-y-2.5">
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={houveDisparos}
-                      onChange={(e) => setHouveDisparos(e.target.checked)}
-                      className="w-4 h-4 rounded bg-[#131913] border-[#2f3f2e] text-[#638555] accent-[#e5a93c]"
-                    />
-                    <span className="text-xs font-bold uppercase text-[#e5a93c]">
-                      Houve disparos em serviço ou munições deflagradas/consumidas?
-                    </span>
-                  </label>
+                {/* Opção Específica para Disparos / Consumo de Munições (somente se houver munição pendente ainda não devolvida) */}
+                {municoesDisponiveisParaDisparo.length > 0 && (
+                  <div className="p-3 bg-[#111612] border border-[#223324] rounded text-xs space-y-2.5">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={houveDisparos}
+                        onChange={(e) => setHouveDisparos(e.target.checked)}
+                        className="w-4 h-4 rounded bg-[#131913] border-[#2f3f2e] text-[#638555] accent-[#e5a93c]"
+                      />
+                      <span className="text-xs font-bold uppercase text-[#e5a93c]">
+                        Houve disparos em serviço ou munições deflagradas/consumidas?
+                      </span>
+                    </label>
 
-                  {houveDisparos && (
-                    <div className="space-y-3 pt-2 border-t border-[#3d2f1a] bg-[#1a140c] p-3 rounded">
-                      <p className="text-[11px] text-[#cfb78f]">
-                        Especifique a quantidade de munições consumidas/disparadas e o número do Boletim de Ocorrência:
-                      </p>
+                    {houveDisparos && (
+                      <div className="space-y-3 pt-2 border-t border-[#3d2f1a] bg-[#1a140c] p-3 rounded">
+                        <p className="text-[11px] text-[#cfb78f]">
+                          Especifique a quantidade de munições consumidas/disparadas e o número do Boletim de Ocorrência:
+                        </p>
 
-                      <div className="space-y-2">
-                        {retiradaAtual.itens
-                          .filter((it) => it.categoria === 'MUNIÇÃO')
-                          .map((it) => {
+                        <div className="space-y-2">
+                          {municoesDisponiveisParaDisparo.map((it) => {
                             const pendente = Math.max(0, it.quantidade - (it.quantidadeDevolvida ?? 0) - (it.quantidadeConsumida ?? 0));
-                            const devAgora = itensDevolvidos[it.id] ? (quantidadesDevolvidas[it.id] ?? 0) : 0;
-                            const maxConsumo = Math.max(0, pendente - devAgora);
 
                             return (
                               <div key={it.id} className="flex items-center justify-between text-xs bg-[#0f0c08] p-2 rounded border border-[#4d3615]">
@@ -749,47 +724,48 @@ export const DevolucaoModal: React.FC<DevolucaoModalProps> = ({
                                   <input
                                     type="number"
                                     min={0}
-                                    max={maxConsumo}
+                                    max={pendente}
                                     value={disparosPorItem[it.id] || 0}
-                                    onChange={(e) => handleDisparosQtdChange(it.id, parseInt(e.target.value, 10) || 0, maxConsumo)}
+                                    onChange={(e) => handleDisparosQtdChange(it.id, parseInt(e.target.value, 10) || 0, pendente)}
                                     className="w-16 bg-[#1a140c] border border-[#7a5522] px-1.5 py-0.5 text-center text-xs font-bold text-white rounded"
                                   />
-                                  <span className="text-[10px] text-[#8f7a5b]">máx: {maxConsumo}</span>
+                                  <span className="text-[10px] text-[#8f7a5b]">máx: {pendente}</span>
                                 </div>
                               </div>
                             );
                           })}
-                      </div>
+                        </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                        <div>
-                          <label className="text-[10px] text-[#bda176] uppercase font-bold block mb-1">
-                            Nº BOLETIM DE OCORRÊNCIA (BO) *
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ex: BO-2026/04918-B"
-                            value={numeroBO}
-                            onChange={(e) => setNumeroBO(e.target.value)}
-                            className="w-full bg-[#0c110d] border border-[#593d18] px-2.5 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#e5a93c]"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-[#bda176] uppercase font-bold block mb-1">
-                            HISTÓRICO DA OCORRÊNCIA
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ex: Disparos em confronto / ocorrência"
-                            value={observacoes}
-                            onChange={(e) => setObservacoes(e.target.value)}
-                            className="w-full bg-[#0c110d] border border-[#593d18] px-2.5 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#e5a93c]"
-                          />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <label className="text-[10px] text-[#bda176] uppercase font-bold block mb-1">
+                              Nº BOLETIM DE OCORRÊNCIA (BO) *
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ex: BO-2026/04918-B"
+                              value={numeroBO}
+                              onChange={(e) => setNumeroBO(e.target.value)}
+                              className="w-full bg-[#0c110d] border border-[#593d18] px-2.5 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#e5a93c]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[#bda176] uppercase font-bold block mb-1">
+                              HISTÓRICO DA OCORRÊNCIA
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ex: Disparos em confronto / ocorrência"
+                              value={observacoes}
+                              onChange={(e) => setObservacoes(e.target.value)}
+                              className="w-full bg-[#0c110d] border border-[#593d18] px-2.5 py-1.5 text-xs text-white rounded focus:outline-none focus:border-[#e5a93c]"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Assinatura Digital: Apenas Armeiro Recebedor */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#1f281e]">
